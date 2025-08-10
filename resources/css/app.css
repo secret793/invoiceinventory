@@ -1,0 +1,30 @@
+/* resources/css/app.css */
+
+@tailwind base;  /* Add this line to include Tailwind's base styles */
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles for card backgrounds */
+.bg-online {
+    background-color: #d1fae5; /* Light green */
+}
+
+.bg-offline {
+    background-color: #fefcbf; /* Light yellow */
+}
+
+.bg-damaged {
+    background-color: #fee2e2; /* Light red */
+}
+
+.bg-fixed {
+    background-color: #bfdbfe; /* Light blue */
+}
+
+.bg-lost {
+    background-color: #fca5a1; /* Darker red */
+}
+
+.bg-received {
+    background-color: #bbf7d0; /* Darker green */
+}
