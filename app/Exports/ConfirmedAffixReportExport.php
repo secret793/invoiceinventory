@@ -6,8 +6,12 @@ use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Events\AfterSheet;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
-class ConfirmedAffixReportExport implements FromCollection, WithHeadings, WithMapping, ShouldAutoSize
+class ConfirmedAffixReportExport implements FromCollection, WithHeadings, WithMapping, ShouldAutoSize, WithEvents
 {
     protected $filters;
     protected $modelClass;
@@ -24,17 +28,72 @@ class ConfirmedAffixReportExport implements FromCollection, WithHeadings, WithMa
             'device',
             'route',
             'longRoute',
-            'affixedBy'
+            'affixedBy',
+            'allocationPoint'
         ]);
 
-        // Apply allocation point permission filtering
+        // Apply allocation point permission filtering (same logic as ConfirmedAffixed model)
         $user = auth()->user();
-        if (!$user->hasRole(['Super Admin', 'Warehouse Manager'])) {
-            $userAllocationPoints = $user->allocationPoints->pluck('id')->toArray();
-            if (!empty($userAllocationPoints)) {
-                $query->whereIn('allocation_point_id', $userAllocationPoints);
+        if ($user && !$user->hasRole(['Super Admin', 'Warehouse Manager'])) {
+            // For Retrieval Officer and Affixing Officer, filter by allocation point permissions
+            if ($user->hasRole(['Retrieval Officer', 'Affixing Officer'])) {
+                // Get all permissions starting with 'view_allocationpoint_'
+                $permissions = $user->permissions->pluck('name')->toArray();
+                $allocationPointPermissions = array_filter($permissions, function ($permission) {
+                    return \Illuminate\Support\Str::startsWith($permission, 'view_allocationpoint_');
+                });
+
+                // Extract allocation point names from permissions
+                $allocationPointNames = array_map(function ($permission) {
+                    return \Illuminate\Support\Str::after($permission, 'view_allocationpoint_');
+                }, $allocationPointPermissions);
+
+                if (!empty($allocationPointNames)) {
+                    try {
+                        // Get allocation points directly with raw query for reliability
+                        $allocationPoints = collect(\DB::table('allocation_points')->get())
+                            ->map(function($item) {
+                                return (object)[
+                                    'id' => $item->id,
+                                    'name' => $item->name,
+                                    'location' => $item->location,
+                                    'status' => $item->status
+                                ];
+                            });
+
+                        // Find matching allocation points by name (case insensitive)
+                        $matchingPoints = $allocationPoints->filter(function($point) use ($allocationPointNames) {
+                            $pointName = strtolower($point->name);
+                            foreach ($allocationPointNames as $searchName) {
+                                if (str_contains($pointName, strtolower($searchName))) {
+                                    return true;
+                                }
+                            }
+                            return false;
+                        });
+
+                        $allocationPointIds = $matchingPoints->pluck('id')->toArray();
+                        $allocationPointIds = array_unique($allocationPointIds);
+
+                        if (!empty($allocationPointIds)) {
+                            $query->whereIn('allocation_point_id', $allocationPointIds);
+                        } else {
+                            // Show nothing if no matching allocation points
+                            $query->whereRaw('1 = 0');
+                        }
+                    } catch (\Exception $e) {
+                        \Log::error('ConfirmedAffixReportExport: Error filtering by allocation points', [
+                            'error' => $e->getMessage(),
+                            'user_id' => $user->id
+                        ]);
+                        $query->whereRaw('1 = 0');
+                    }
+                } else {
+                    // Show nothing if no permissions
+                    $query->whereRaw('1 = 0');
+                }
             } else {
-                // If user has no allocation points assigned, show no records
+                // Default: show nothing for other roles
                 $query->whereRaw('1 = 0');
             }
         }
@@ -89,6 +148,12 @@ class ConfirmedAffixReportExport implements FromCollection, WithHeadings, WithMa
         if (!empty($this->filters['destination'])) {
             $query->where('destination', 'LIKE', "%{$this->filters['destination']}%");
         }
+        if (!empty($this->filters['allocation_point_id'])) {
+            $query->where('allocation_point_id', $this->filters['allocation_point_id']);
+        }
+        if (!empty($this->filters['status'])) {
+            $query->where('status', $this->filters['status']);
+        }
 
         // Sorting support
         $sortBy = $this->filters['sort_by'] ?? 'created_at';
@@ -102,17 +167,21 @@ class ConfirmedAffixReportExport implements FromCollection, WithHeadings, WithMa
     {
         return [
             'Device ID',
-            'SAD/T1',
+            'BOE/SAD',
             'Vehicle Number',
             'Regime',
             'Route',
             'Destination',
+            'Manifest Date',
             'Agency',
             'Agent Contact',
             'Truck Number',
             'Driver Name',
             'Affixing Date',
-            'Affixed By'
+            'Status',
+            'Allocation Point',
+            'Affixed By',
+            'Created At'
         ];
     }
 
@@ -120,17 +189,67 @@ class ConfirmedAffixReportExport implements FromCollection, WithHeadings, WithMa
     {
         return [
             $row->device->device_id ?? 'N/A',
-            $row->boe,
-            $row->vehicle_number,
-            $row->regime,
+            $row->boe ?? 'N/A',
+            $row->vehicle_number ?? 'N/A',
+            $row->regime ?? 'N/A',
             $row->route->name ?? $row->longRoute->name ?? 'N/A',
-            $row->destination,
-            $row->agency,
-            $row->agent_contact,
-            $row->truck_number,
-            $row->driver_name,
+            $row->destination ?? 'N/A',
+            $row->manifest_date ? $row->manifest_date->format('Y-m-d') : 'N/A',
+            $row->agency ?? 'N/A',
+            $row->agent_contact ?? 'N/A',
+            $row->truck_number ?? 'N/A',
+            $row->driver_name ?? 'N/A',
             $row->affixing_date ? $row->affixing_date->format('Y-m-d H:i:s') : 'N/A',
-            $row->affixedBy->name ?? 'N/A',
+            $row->status ?? 'N/A',
+            optional($row->allocationPoint)->name ?? 'N/A',
+            $row->affixedBy ? $row->affixedBy->name : 'N/A',
+            $row->created_at ? $row->created_at->format('Y-m-d H:i:s') : 'N/A',
+        ];
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function(AfterSheet $event) {
+                $sheet = $event->sheet->getDelegate();
+
+                // Get the total count of records
+                $totalCount = $this->collection()->count();
+
+                // Find the last row with data
+                $lastRow = $sheet->getHighestRow();
+
+                // Add total count 2 rows below the data
+                $totalRow = $lastRow + 2;
+
+                // Add the total count in the first column
+                $sheet->setCellValue('A' . $totalRow, 'Total Devices:');
+                $sheet->setCellValue('B' . $totalRow, $totalCount);
+
+                // Style the total row
+                $sheet->getStyle('A' . $totalRow . ':B' . $totalRow)->applyFromArray([
+                    'font' => [
+                        'bold' => true,
+                        'size' => 12,
+                    ],
+                    'fill' => [
+                        'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                        'startColor' => [
+                            'rgb' => 'E8F4FD',
+                        ],
+                    ],
+                    'borders' => [
+                        'allBorders' => [
+                            'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                        ],
+                    ],
+                ]);
+
+                // Auto-size all columns
+                foreach (range('A', $sheet->getHighestColumn()) as $column) {
+                    $sheet->getColumnDimension($column)->setAutoSize(true);
+                }
+            },
         ];
     }
 }

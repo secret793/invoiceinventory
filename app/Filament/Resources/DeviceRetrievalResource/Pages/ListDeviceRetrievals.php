@@ -26,120 +26,17 @@ class ListDeviceRetrievals extends ListRecords
     protected static string $resource = DeviceRetrievalResource::class;
 
     // Filter properties for the device retrieval report modal
-    public $reportFilters = [
-        'search' => null,
-        'device_id' => null,
-        'boe' => null,
-        'vehicle_number' => null,
-        'start_date' => null,
-        'end_date' => null,
-        'start_time' => null,
-        'end_time' => null,
-        'destination' => null,
-        'retrieval_status' => null,
-        'action_type' => null,
-        'sort_by' => 'created_at',
-        'sort_direction' => 'desc',
-    ];
+    public $filters = [];
 
-    public function getDeviceRetrievalLogsProperty()
+    // Legacy property to prevent Livewire errors
+    public $reportFilters = [];
+
+    public function mount(): void
     {
-        $query = \App\Models\DeviceRetrievalLog::query()
-            ->with(['device', 'route', 'longRoute', 'retrievedBy', 'distributionPoint', 'allocationPoint']);
+        parent::mount();
 
-        // Apply allocation point permission filtering
-        $user = auth()->user();
-        if (!$user->hasRole(['Super Admin', 'Warehouse Manager'])) {
-            $userAllocationPoints = $user->allocationPoints->pluck('id')->toArray();
-            if (!empty($userAllocationPoints)) {
-                $query->whereIn('allocation_point_id', $userAllocationPoints);
-            } else {
-                // If user has no allocation points assigned, show no records
-                $query->whereRaw('1 = 0');
-            }
-        }
-
-        // Apply filters
-        if (!empty($this->reportFilters['search'])) {
-            $search = $this->reportFilters['search'];
-            $query->where(function($q) use ($search) {
-                $q->whereHas('device', function($deviceQuery) use ($search) {
-                    $deviceQuery->where('device_id', 'LIKE', "%{$search}%");
-                })
-                ->orWhere('boe', 'LIKE', "%{$search}%")
-                ->orWhere('vehicle_number', 'LIKE', "%{$search}%");
-            });
-        }
-
-        if (!empty($this->reportFilters['device_id'])) {
-            $query->whereHas('device', function($deviceQuery) {
-                $deviceQuery->where('device_id', 'LIKE', "%{$this->reportFilters['device_id']}%");
-            });
-        }
-
-        if (!empty($this->reportFilters['boe'])) {
-            $query->where('boe', 'LIKE', "%{$this->reportFilters['boe']}%");
-        }
-
-        if (!empty($this->reportFilters['vehicle_number'])) {
-            $query->where('vehicle_number', 'LIKE', "%{$this->reportFilters['vehicle_number']}%");
-        }
-
-        if (!empty($this->reportFilters['destination'])) {
-            $query->where('destination', 'LIKE', "%{$this->reportFilters['destination']}%");
-        }
-
-        if (!empty($this->reportFilters['retrieval_status'])) {
-            $query->where('retrieval_status', $this->reportFilters['retrieval_status']);
-        }
-
-        if (!empty($this->reportFilters['action_type'])) {
-            $query->where('action_type', $this->reportFilters['action_type']);
-        }
-
-        // Apply date and time filters
-        if (!empty($this->reportFilters['start_date']) && !empty($this->reportFilters['end_date'])) {
-            $startDate = $this->reportFilters['start_date'];
-            $endDate = $this->reportFilters['end_date'];
-
-            if (!empty($this->reportFilters['start_time']) && !empty($this->reportFilters['end_time'])) {
-                $startDateTime = $startDate . ' ' . $this->reportFilters['start_time'];
-                $endDateTime = $endDate . ' ' . $this->reportFilters['end_time'];
-                $query->whereBetween('created_at', [$startDateTime, $endDateTime]);
-            } else {
-                $query->whereDate('created_at', '>=', $startDate)
-                      ->whereDate('created_at', '<=', $endDate);
-            }
-        } elseif (!empty($this->reportFilters['start_date'])) {
-            if (!empty($this->reportFilters['start_time'])) {
-                $startDateTime = $this->reportFilters['start_date'] . ' ' . $this->reportFilters['start_time'];
-                $query->where('created_at', '>=', $startDateTime);
-            } else {
-                $query->whereDate('created_at', '>=', $this->reportFilters['start_date']);
-            }
-        } elseif (!empty($this->reportFilters['end_date'])) {
-            if (!empty($this->reportFilters['end_time'])) {
-                $endDateTime = $this->reportFilters['end_date'] . ' ' . $this->reportFilters['end_time'];
-                $query->where('created_at', '<=', $endDateTime);
-            } else {
-                $query->whereDate('created_at', '<=', $this->reportFilters['end_date']);
-            }
-        }
-
-        // Apply sorting
-        $sortBy = $this->reportFilters['sort_by'] ?? 'created_at';
-        $sortDirection = $this->reportFilters['sort_direction'] ?? 'desc';
-        $query->orderBy($sortBy, $sortDirection);
-
-        return $query->paginate(50);
-    }
-
-    /**
-     * Reset all report filters
-     */
-    public function resetReportFilters()
-    {
-        $this->reportFilters = [
+        // Initialize filters (no default dates)
+        $this->filters = [
             'search' => null,
             'device_id' => null,
             'boe' => null,
@@ -148,40 +45,139 @@ class ListDeviceRetrievals extends ListRecords
             'end_date' => null,
             'start_time' => null,
             'end_time' => null,
-            'destination' => null,
+
             'retrieval_status' => null,
             'action_type' => null,
+            'allocation_point_id' => null,
             'sort_by' => 'created_at',
             'sort_direction' => 'desc',
         ];
+
+        // Initialize legacy property to prevent errors
+        $this->reportFilters = [];
     }
 
     /**
-     * Apply report filters and refresh modal content
+     * Handle legacy property access
      */
-    public function applyReportFilters()
+    public function getReportFiltersProperty()
     {
-        // This method is called when Apply Filters is clicked
-        // The reactive properties will automatically update
+        return $this->filters;
     }
 
     /**
-     * Handle column sorting
+     * Handle legacy property updates
+     */
+    public function updatedReportFilters($value, $key)
+    {
+        $this->filters[$key] = $value;
+    }
+
+
+
+    public function getDeviceRetrievalLogsProperty()
+    {
+        // Build query using the same logic as DeviceRetrievalReport
+        $startDateTime = null;
+        $endDateTime = null;
+
+        // Handle start date/time
+        if (!empty($this->filters['start_date'])) {
+            $startDateTime = $this->filters['start_date'];
+            if (!empty($this->filters['start_time'])) {
+                $startDateTime .= ' ' . $this->filters['start_time'];
+            } else {
+                $startDateTime .= ' 00:00:00';
+            }
+        }
+
+        // Handle end date/time
+        if (!empty($this->filters['end_date'])) {
+            $endDateTime = $this->filters['end_date'];
+            if (!empty($this->filters['end_time'])) {
+                $endDateTime .= ' ' . $this->filters['end_time'];
+            } else {
+                $endDateTime .= ' 23:59:59';
+            }
+        }
+
+        $query = \App\Models\DeviceRetrievalLog::query()
+            ->with([
+                'device',
+                'allocationPoint' => function($query) {
+                    $query->withoutGlobalScopes();
+                },
+                'retrievedBy',
+                'route',
+                'longRoute',
+                'distributionPoint'
+            ])
+            ->when($startDateTime, fn ($query) => $query->where('created_at', '>=', $startDateTime))
+            ->when($endDateTime, fn ($query) => $query->where('created_at', '<=', $endDateTime))
+            ->when($this->filters['allocation_point_id'] ?? null, fn ($query, $id) => $query->where('allocation_point_id', $id))
+            ->when($this->filters['retrieval_status'] ?? null, fn ($query, $status) => $query->where('retrieval_status', $status))
+            ->when($this->filters['action_type'] ?? null, fn ($query, $actionType) => $query->where('action_type', $actionType))
+            ->when($this->filters['device_id'] ?? null, fn ($query, $deviceId) => $query->whereHas('device', function($q) use ($deviceId) {
+                $q->where('device_id', 'like', "%{$deviceId}%");
+            }))
+            ->when($this->filters['boe'] ?? null, fn ($query, $boe) => $query->where('boe', 'like', "%{$boe}%"))
+            ->when($this->filters['vehicle_number'] ?? null, fn ($query, $vehicleNumber) => $query->where('vehicle_number', 'like', "%{$vehicleNumber}%"))
+
+            ->when($this->filters['search'] ?? null, fn ($query, $search) => $query->where(function($q) use ($search) {
+                $q->whereHas('device', function($q) use ($search) {
+                    $q->where('device_id', 'like', "%{$search}%");
+                })
+                ->orWhere('boe', 'like', "%{$search}%")
+                ->orWhere('vehicle_number', 'like', "%{$search}%");
+            }));
+
+        // Note: Permission filtering is now handled by the DeviceRetrievalLog global scope
+        // which filters by destination permissions for Retrieval Officers
+
+        // Apply sorting
+        $query->orderBy($this->filters['sort_by'] ?? 'created_at', $this->filters['sort_direction'] ?? 'desc');
+
+        return $query->paginate(25);
+    }
+
+    /**
+     * Reset filters
+     */
+    public function resetFilters()
+    {
+        $this->reset('filters');
+        // Force refresh of computed properties
+        unset($this->cachedMountedActions);
+    }
+
+    /**
+     * Apply filters
+     */
+    public function applyFilters()
+    {
+        // Trigger a refresh of the data to apply current filters
+        $this->dispatch('$refresh');
+    }
+
+    /**
+     * Handle column sorting (delegate to DeviceRetrievalReport controller)
      */
     public function sortBy($column)
     {
-        $currentSortBy = $this->reportFilters['sort_by'] ?? 'created_at';
-        $currentDirection = $this->reportFilters['sort_direction'] ?? 'desc';
+        $currentSortBy = $this->filters['sort_by'] ?? 'created_at';
+        $currentDirection = $this->filters['sort_direction'] ?? 'desc';
 
         if ($currentSortBy === $column) {
             // Toggle direction if same column
-            $this->reportFilters['sort_direction'] = $currentDirection === 'asc' ? 'desc' : 'asc';
+            $this->filters['sort_direction'] = $currentDirection === 'asc' ? 'desc' : 'asc';
         } else {
             // New column, default to asc
-            $this->reportFilters['sort_by'] = $column;
-            $this->reportFilters['sort_direction'] = 'asc';
+            $this->filters['sort_by'] = $column;
+            $this->filters['sort_direction'] = 'asc';
         }
     }
+
+
 
     protected function getHeaderActions(): array
     {
@@ -193,85 +189,34 @@ class ListDeviceRetrievals extends ListRecords
                 ->icon('heroicon-o-document-chart-bar')
                 ->color('info')
                 ->modalHeading('Device Retrieval Report')
-                ->modalSubmitActionLabel('Export to Excel')
-                ->modalWidth('6xl')
+                ->modalWidth('7xl')
                 ->modalContent(fn () => view('filament.resources.device-retrieval-resource.pages.device-retrieval-report'))
-                ->action(function (array $data) {
-                    // Filter out empty values and create query parameters
-                    $filteredParams = array_filter($data, function($value) {
+                ->modalSubmitActionLabel('Export to Excel')
+                ->modalSubmitAction(function ($action) {
+                    $params = [
+                        'search' => $this->filters['search'] ?? null,
+                        'device_id' => $this->filters['device_id'] ?? null,
+                        'boe' => $this->filters['boe'] ?? null,
+                        'vehicle_number' => $this->filters['vehicle_number'] ?? null,
+                        'start_date' => $this->filters['start_date'] ?? null,
+                        'end_date' => $this->filters['end_date'] ?? null,
+                        'start_time' => $this->filters['start_time'] ?? null,
+                        'end_time' => $this->filters['end_time'] ?? null,
+
+                        'retrieval_status' => $this->filters['retrieval_status'] ?? null,
+                        'action_type' => $this->filters['action_type'] ?? null,
+                        'allocation_point_id' => $this->filters['allocation_point_id'] ?? null,
+                        'sort_by' => $this->filters['sort_by'] ?? null,
+                        'sort_direction' => $this->filters['sort_direction'] ?? null,
+                    ];
+
+                    // Remove null values from the params array
+                    $filteredParams = array_filter($params, function($value) {
                         return $value !== null && $value !== '';
                     });
 
-                    // Build query string
-                    $queryString = http_build_query($filteredParams);
-
-                    // Redirect to export route with parameters
-                    return redirect()->away(route('export.device-retrieval-report') . ($queryString ? '?' . $queryString : ''));
-                })
-                ->form([
-                    Forms\Components\Grid::make(3)
-                        ->schema([
-                            Forms\Components\TextInput::make('search')
-                                ->label('Search (Device ID, BOE, Vehicle)')
-                                ->placeholder('Search...'),
-                            Forms\Components\TextInput::make('device_id')
-                                ->label('Device ID'),
-                            Forms\Components\TextInput::make('boe')
-                                ->label('BOE'),
-                        ]),
-                    Forms\Components\Grid::make(3)
-                        ->schema([
-                            Forms\Components\TextInput::make('vehicle_number')
-                                ->label('Vehicle Number'),
-                            Forms\Components\TextInput::make('destination')
-                                ->label('Destination'),
-                            Forms\Components\Select::make('retrieval_status')
-                                ->label('Retrieval Status')
-                                ->options([
-                                    'NOT_RETRIEVED' => 'Not Retrieved',
-                                    'RETRIEVED' => 'Retrieved',
-                                    'RETURNED' => 'Returned',
-                                ]),
-                        ]),
-                    Forms\Components\Grid::make(3)
-                        ->schema([
-                            Forms\Components\Select::make('action_type')
-                                ->label('Action Type')
-                                ->options([
-                                    'RETRIEVED' => 'Retrieved',
-                                    'RETURNED' => 'Returned',
-                                ]),
-                            Forms\Components\DatePicker::make('start_date')
-                                ->label('Start Date'),
-                            Forms\Components\DatePicker::make('end_date')
-                                ->label('End Date'),
-                        ]),
-                    Forms\Components\Grid::make(4)
-                        ->schema([
-                            Forms\Components\TimePicker::make('start_time')
-                                ->label('Start Time'),
-                            Forms\Components\TimePicker::make('end_time')
-                                ->label('End Time'),
-                            Forms\Components\Select::make('sort_by')
-                                ->label('Sort By')
-                                ->options([
-                                    'created_at' => 'Date Created',
-                                    'retrieval_date' => 'Retrieval Date',
-                                    'device_id' => 'Device ID',
-                                    'boe' => 'BOE',
-                                    'vehicle_number' => 'Vehicle Number',
-                                    'destination' => 'Destination',
-                                ])
-                                ->default('created_at'),
-                            Forms\Components\Select::make('sort_direction')
-                                ->label('Sort Direction')
-                                ->options([
-                                    'asc' => 'Ascending',
-                                    'desc' => 'Descending',
-                                ])
-                                ->default('desc'),
-                        ]),
-                ]),
+                    return $action->url(route('export.device-retrieval-report', $filteredParams));
+                }),
         ];
     }
 
@@ -305,6 +250,11 @@ class ListDeviceRetrievals extends ListRecords
                 Tables\Columns\TextColumn::make('regime')
                     ->label('Regime')
                     ->searchable(),
+                Tables\Columns\TextColumn::make('allocationPoint.name')
+                    ->label('Allocation Point')
+                    ->searchable()
+                    ->sortable()
+                    ->wrap(),
                 Tables\Columns\TextColumn::make('destination')
                     ->label('Destination')
                     ->searchable()

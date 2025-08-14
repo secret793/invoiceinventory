@@ -16,6 +16,8 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Route;
 use Filament\Tables\Actions\Action;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ConfirmedAffixReport extends Page implements Tables\Contracts\HasTable
 {
@@ -65,6 +67,7 @@ class ConfirmedAffixReport extends Page implements Tables\Contracts\HasTable
                     'rejected' => 'danger',
                     default => 'gray',
                 })->sortable(),
+                TextColumn::make('affixedBy.name')->label('Affixed By')->searchable()->sortable(),
                 TextColumn::make('created_at')->dateTime()->sortable(),
             ])
             ->filters([
@@ -83,7 +86,7 @@ class ConfirmedAffixReport extends Page implements Tables\Contracts\HasTable
                         TextInput::make('end_time')->label('End Time')->type('time'),
                         Select::make('allocation_point_id')
                             ->label('Allocation Point')
-                            ->options(\App\Models\AllocationPoint::pluck('name', 'id')->toArray()),
+                            ->options($this->getAllocationPointsForFilter()),
                         Select::make('status')
                             ->label('Status')
                             ->options([
@@ -129,9 +132,79 @@ class ConfirmedAffixReport extends Page implements Tables\Contracts\HasTable
                 $endDateTime .= ' 23:59:59';
             }
         }
+
         $query = \App\Models\ConfirmedAffixLog::query()
-            ->with(['device', 'allocationPoint'])
-            ->when($startDateTime, fn (Builder $query) => $query->where('created_at', '>=', $startDateTime))
+            ->with(['device', 'allocationPoint', 'affixedBy']);
+
+        // Apply allocation point permission filtering (same logic as ConfirmedAffixed model)
+        $user = auth()->user();
+        if ($user && !$user->hasRole(['Super Admin', 'Warehouse Manager'])) {
+            // For Retrieval Officer and Affixing Officer, filter by allocation point permissions
+            if ($user->hasRole(['Retrieval Officer', 'Affixing Officer'])) {
+                // Get all permissions starting with 'view_allocationpoint_'
+                $permissions = $user->permissions->pluck('name')->toArray();
+                $allocationPointPermissions = array_filter($permissions, function ($permission) {
+                    return \Illuminate\Support\Str::startsWith($permission, 'view_allocationpoint_');
+                });
+
+                // Extract allocation point names from permissions
+                $allocationPointNames = array_map(function ($permission) {
+                    return \Illuminate\Support\Str::after($permission, 'view_allocationpoint_');
+                }, $allocationPointPermissions);
+
+                if (!empty($allocationPointNames)) {
+                    try {
+                        // Get allocation points directly with raw query for reliability
+                        $allocationPoints = collect(\DB::table('allocation_points')->get())
+                            ->map(function($item) {
+                                return (object)[
+                                    'id' => $item->id,
+                                    'name' => $item->name,
+                                    'location' => $item->location,
+                                    'status' => $item->status
+                                ];
+                            });
+
+                        // Find matching allocation points by name (case insensitive)
+                        $matchingPoints = $allocationPoints->filter(function($point) use ($allocationPointNames) {
+                            $pointName = strtolower($point->name);
+                            foreach ($allocationPointNames as $searchName) {
+                                if (str_contains($pointName, strtolower($searchName))) {
+                                    return true;
+                                }
+                            }
+                            return false;
+                        });
+
+                        $allocationPointIds = $matchingPoints->pluck('id')->toArray();
+                        $allocationPointIds = array_unique($allocationPointIds);
+
+                        if (!empty($allocationPointIds)) {
+                            $query->whereIn('allocation_point_id', $allocationPointIds);
+                        } else {
+                            // Show nothing if no matching allocation points
+                            $query->whereRaw('1 = 0');
+                        }
+                    } catch (\Exception $e) {
+                        Log::error('ConfirmedAffixReport: Error filtering by allocation points', [
+                            'error' => $e->getMessage(),
+                            'user_id' => $user->id,
+                            'trace' => $e->getTraceAsString()
+                        ]);
+                        $query->whereRaw('1 = 0');
+                    }
+                } else {
+                    // Show nothing if no permissions
+                    $query->whereRaw('1 = 0');
+                }
+            } else {
+                // Default: show nothing for other roles
+                $query->whereRaw('1 = 0');
+            }
+        }
+
+        // Apply other filters
+        $query->when($startDateTime, fn (Builder $query) => $query->where('created_at', '>=', $startDateTime))
             ->when($endDateTime, fn (Builder $query) => $query->where('created_at', '<=', $endDateTime))
             ->when($this->filters['allocation_point_id'] ?? null, fn (Builder $query, $id) => $query->where('allocation_point_id', $id))
             ->when($this->filters['status'] ?? null, fn (Builder $query, $status) => $query->where('status', $status))
@@ -148,6 +221,37 @@ class ConfirmedAffixReport extends Page implements Tables\Contracts\HasTable
                 ->orWhere('boe', 'like', "%{$search}%")
                 ->orWhere('vehicle_number', 'like', "%{$search}%");
             }));
+
+        // Debug: Log the final query and results
+        $finalQuery = $query->toSql();
+        $bindings = $query->getBindings();
+        $results = $query->get();
+
+        Log::info('ConfirmedAffixReport: Final query debug', [
+            'user_id' => $user?->id,
+            'sql' => $finalQuery,
+            'bindings' => $bindings,
+            'result_count' => $results->count(),
+            'filters' => $this->filters,
+            'start_date_time' => $startDateTime,
+            'end_date_time' => $endDateTime
+        ]);
+
+        if ($results->count() > 0) {
+            Log::info('ConfirmedAffixReport: Sample results', [
+                'user_id' => $user?->id,
+                'first_3_results' => $results->take(3)->map(function($r) {
+                    return [
+                        'id' => $r->id,
+                        'device_id' => $r->device_id,
+                        'boe' => $r->boe,
+                        'allocation_point_id' => $r->allocation_point_id,
+                        'created_at' => $r->created_at
+                    ];
+                })->toArray()
+            ]);
+        }
+
         // Apply sorting
         $query->orderBy($this->filters['sort_by'] ?? 'created_at', $this->filters['sort_direction'] ?? 'desc');
         return $query;
@@ -182,7 +286,71 @@ class ConfirmedAffixReport extends Page implements Tables\Contracts\HasTable
 
     public function getAllocationPointsProperty(): array
     {
-        return AllocationPoint::pluck('name', 'id')->toArray();
+        return $this->getAllocationPointsForFilter();
+    }
+
+    /**
+     * Get allocation points that the user has permission to view
+     */
+    public function getAllocationPointsForFilter(): array
+    {
+        $user = auth()->user();
+
+        // Super Admin and Warehouse Manager can see all allocation points
+        if ($user && $user->hasRole(['Super Admin', 'Warehouse Manager'])) {
+            return AllocationPoint::pluck('name', 'id')->toArray();
+        }
+
+        // For other roles, filter by permissions
+        if ($user && $user->hasRole(['Retrieval Officer', 'Affixing Officer'])) {
+            // Get all permissions starting with 'view_allocationpoint_'
+            $permissions = $user->permissions->pluck('name')->toArray();
+            $allocationPointPermissions = array_filter($permissions, function ($permission) {
+                return \Illuminate\Support\Str::startsWith($permission, 'view_allocationpoint_');
+            });
+
+            // Extract allocation point names from permissions
+            $allocationPointNames = array_map(function ($permission) {
+                return \Illuminate\Support\Str::after($permission, 'view_allocationpoint_');
+            }, $allocationPointPermissions);
+
+            if (!empty($allocationPointNames)) {
+                try {
+                    // Get allocation points directly with raw query for reliability
+                    $allocationPoints = collect(\DB::table('allocation_points')->get())
+                        ->map(function($item) {
+                            return (object)[
+                                'id' => $item->id,
+                                'name' => $item->name,
+                                'location' => $item->location,
+                                'status' => $item->status
+                            ];
+                        });
+
+                    // Find matching allocation points by name (case insensitive)
+                    $matchingPoints = $allocationPoints->filter(function($point) use ($allocationPointNames) {
+                        $pointName = strtolower($point->name);
+                        foreach ($allocationPointNames as $searchName) {
+                            if (str_contains($pointName, strtolower($searchName))) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    });
+
+                    return $matchingPoints->pluck('name', 'id')->toArray();
+                } catch (\Exception $e) {
+                    Log::error('ConfirmedAffixReport: Error getting allocation points for filter', [
+                        'error' => $e->getMessage(),
+                        'user_id' => $user->id
+                    ]);
+                    return [];
+                }
+            }
+        }
+
+        // Default: return empty array for users without permissions
+        return [];
     }
 
 

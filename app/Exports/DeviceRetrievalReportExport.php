@@ -6,8 +6,12 @@ use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Events\AfterSheet;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
-class DeviceRetrievalReportExport implements FromCollection, WithHeadings, WithMapping, ShouldAutoSize
+class DeviceRetrievalReportExport implements FromCollection, WithHeadings, WithMapping, ShouldAutoSize, WithEvents
 {
     protected $filters;
     protected $modelClass;
@@ -26,20 +30,13 @@ class DeviceRetrievalReportExport implements FromCollection, WithHeadings, WithM
             'longRoute',
             'retrievedBy',
             'distributionPoint',
-            'allocationPoint'
+            'allocationPoint' => function($query) {
+                $query->withoutGlobalScopes();
+            }
         ]);
 
-        // Apply allocation point permission filtering
-        $user = auth()->user();
-        if (!$user->hasRole(['Super Admin', 'Warehouse Manager'])) {
-            $userAllocationPoints = $user->allocationPoints->pluck('id')->toArray();
-            if (!empty($userAllocationPoints)) {
-                $query->whereIn('allocation_point_id', $userAllocationPoints);
-            } else {
-                // If user has no allocation points assigned, show no records
-                $query->whereRaw('1 = 0');
-            }
-        }
+        // Note: Permission filtering is now handled by the DeviceRetrievalLog global scope
+        // which filters by destination permissions for Retrieval Officers
 
         // Apply general search filter (searches device_id, boe, vehicle_number)
         if (!empty($this->filters['search'])) {
@@ -68,8 +65,8 @@ class DeviceRetrievalReportExport implements FromCollection, WithHeadings, WithM
             $query->where('vehicle_number', 'LIKE', "%{$this->filters['vehicle_number']}%");
         }
 
-        if (!empty($this->filters['destination'])) {
-            $query->where('destination', 'LIKE', "%{$this->filters['destination']}%");
+        if (!empty($this->filters['allocation_point_id'])) {
+            $query->where('allocation_point_id', $this->filters['allocation_point_id']);
         }
 
         if (!empty($this->filters['retrieval_status'])) {
@@ -125,7 +122,7 @@ class DeviceRetrievalReportExport implements FromCollection, WithHeadings, WithM
             'BOE',
             'Vehicle Number',
             'Regime',
-            'Destination',
+            'Allocation Point',
             'Retrieval Status',
             'Action Type',
             'Retrieved By',
@@ -135,8 +132,6 @@ class DeviceRetrievalReportExport implements FromCollection, WithHeadings, WithM
             'Payment Status',
             'Route',
             'Long Route',
-            'Distribution Point',
-            'Allocation Point',
             'Agency',
             'Agent Contact',
             'Truck Number',
@@ -155,18 +150,16 @@ class DeviceRetrievalReportExport implements FromCollection, WithHeadings, WithM
             $log->boe ?? '',
             $log->vehicle_number ?? '',
             $log->regime ?? '',
-            $log->destination ?? '',
+            optional($log->allocationPoint)->name ?? '',
             $log->retrieval_status ?? '',
             $log->action_type ?? '',
-            $log->retrievedBy->name ?? '',
+            optional($log->retrievedBy)->name ?? '',
             $log->retrieval_date ? $log->retrieval_date->format('Y-m-d H:i:s') : '',
             $log->overstay_days ?? 0,
             $log->overstay_amount ?? 0,
             $log->payment_status ?? '',
-            $log->route->route_name ?? '',
-            $log->longRoute->long_route_name ?? '',
-            $log->distributionPoint->name ?? '',
-            $log->allocationPoint->name ?? '',
+            optional($log->route)->name ?? '',
+            optional($log->longRoute)->name ?? '',
             $log->agency ?? '',
             $log->agent_contact ?? '',
             $log->truck_number ?? '',
@@ -174,6 +167,52 @@ class DeviceRetrievalReportExport implements FromCollection, WithHeadings, WithM
             $log->manifest_date ? $log->manifest_date->format('Y-m-d') : '',
             $log->affixing_date ? $log->affixing_date->format('Y-m-d') : '',
             $log->note ?? '',
+        ];
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function(AfterSheet $event) {
+                $sheet = $event->sheet->getDelegate();
+
+                // Get the total count of records
+                $totalCount = $this->collection()->count();
+
+                // Find the last row with data
+                $lastRow = $sheet->getHighestRow();
+
+                // Add total count 2 rows below the data
+                $totalRow = $lastRow + 2;
+
+                // Add the total count in the first column
+                $sheet->setCellValue('A' . $totalRow, 'Total Devices:');
+                $sheet->setCellValue('B' . $totalRow, $totalCount);
+
+                // Style the total row
+                $sheet->getStyle('A' . $totalRow . ':B' . $totalRow)->applyFromArray([
+                    'font' => [
+                        'bold' => true,
+                        'size' => 12,
+                    ],
+                    'fill' => [
+                        'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                        'startColor' => [
+                            'rgb' => 'E8F4FD',
+                        ],
+                    ],
+                    'borders' => [
+                        'allBorders' => [
+                            'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                        ],
+                    ],
+                ]);
+
+                // Auto-size all columns
+                foreach (range('A', $sheet->getHighestColumn()) as $column) {
+                    $sheet->getColumnDimension($column)->setAutoSize(true);
+                }
+            },
         ];
     }
 }

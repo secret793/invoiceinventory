@@ -222,6 +222,7 @@ class ConfirmedAffixedResource extends Resource
                                 'affixing_date' => $data['affixing_date'],
                                 'status' => 'AFFIXED',
                                 'allocation_point_id' => $record->allocation_point_id ?? null,
+                                'affixed_by' => auth()->id(),
                                 'created_at' => now(),
                                 'updated_at' => now(),
                             ];

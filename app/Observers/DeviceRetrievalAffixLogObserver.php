@@ -141,30 +141,9 @@ class DeviceRetrievalAffixLogObserver
                         ]);
                     }
 
-                    // Also create ConfirmedAffixLog when device is retrieved or returned
-                    $data = [
-                        'device_id' => $deviceRetrieval->device_id,
-                        'boe' => $deviceRetrieval->boe,
-                        'sad_number' => $deviceRetrieval->sad_number ?? null,
-                        'vehicle_number' => $deviceRetrieval->vehicle_number,
-                        'regime' => $deviceRetrieval->regime,
-                        'destination' => $deviceRetrieval->destination,
-                        'destination_id' => $deviceRetrieval->destination_id ?? null,
-                        'route_id' => $deviceRetrieval->route_id,
-                        'long_route_id' => $deviceRetrieval->long_route_id,
-                        'manifest_date' => $deviceRetrieval->manifest_date,
-                        'agency' => $deviceRetrieval->agency,
-                        'agent_contact' => $deviceRetrieval->agent_contact,
-                        'truck_number' => $deviceRetrieval->truck_number,
-                        'driver_name' => $deviceRetrieval->driver_name,
-                        'affixing_date' => $deviceRetrieval->affixing_date,
-                        'status' => $newStatus, // Use the new retrieval status
-                        'allocation_point_id' => $deviceRetrieval->allocation_point_id ?? null,
-                        'affixed_by' => auth()->id(),
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ];
-                    $logId = \DB::table('confirmed_affix_logs')->insertGetId($data);
+                    // Note: ConfirmedAffixLog is only created once when DeviceRetrieval is first created
+                    // We don't create additional ConfirmedAffixLog records for status changes (RETRIEVED/RETURNED)
+                    // to avoid duplication. Only DeviceRetrievalLog tracks the retrieval/return actions.
 
                     Log::info('✅ DeviceRetrievalAffixLogObserver: Successfully processed device retrieval action', [
                         'device_id' => $deviceRetrieval->device_id,
@@ -173,9 +152,9 @@ class DeviceRetrievalAffixLogObserver
                         'new_status' => $newStatus,
                         'retrieved_by' => auth()->id(),
                         'device_retrieval_log_id' => $retrievalLog->id,
-                        'confirmed_affix_log_id' => $logId,
                         'operation' => $existingLog && $newStatus === 'RETURNED' ? 'updated' : 'created',
-                        'timestamp' => now()->toDateTimeString()
+                        'timestamp' => now()->toDateTimeString(),
+                        'note' => 'No ConfirmedAffixLog duplication - only DeviceRetrievalLog updated'
                     ]);
 
                 } catch (\Exception $e) {

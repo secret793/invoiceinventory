@@ -37,14 +37,68 @@ class ListConfirmedAffixeds extends ListRecords
         $query = \App\Models\ConfirmedAffixLog::query()
             ->with(['device', 'route', 'longRoute', 'affixedBy']);
 
-        // Apply allocation point permission filtering
+        // Apply allocation point permission filtering (same logic as ConfirmedAffixed model)
         $user = auth()->user();
         if (!$user->hasRole(['Super Admin', 'Warehouse Manager'])) {
-            $userAllocationPoints = $user->allocationPoints->pluck('id')->toArray();
-            if (!empty($userAllocationPoints)) {
-                $query->whereIn('allocation_point_id', $userAllocationPoints);
+            // For Retrieval Officer and Affixing Officer, filter by allocation point permissions
+            if ($user->hasRole(['Retrieval Officer', 'Affixing Officer'])) {
+                // Get all permissions starting with 'view_allocationpoint_'
+                $permissions = $user->permissions->pluck('name')->toArray();
+                $allocationPointPermissions = array_filter($permissions, function ($permission) {
+                    return \Illuminate\Support\Str::startsWith($permission, 'view_allocationpoint_');
+                });
+
+                // Extract allocation point names from permissions
+                $allocationPointNames = array_map(function ($permission) {
+                    return \Illuminate\Support\Str::after($permission, 'view_allocationpoint_');
+                }, $allocationPointPermissions);
+
+                if (!empty($allocationPointNames)) {
+                    try {
+                        // Get allocation points directly with raw query for reliability
+                        $allocationPoints = collect(\DB::table('allocation_points')->get())
+                            ->map(function($item) {
+                                return (object)[
+                                    'id' => $item->id,
+                                    'name' => $item->name,
+                                    'location' => $item->location,
+                                    'status' => $item->status
+                                ];
+                            });
+
+                        // Find matching allocation points by name (case insensitive)
+                        $matchingPoints = $allocationPoints->filter(function($point) use ($allocationPointNames) {
+                            $pointName = strtolower($point->name);
+                            foreach ($allocationPointNames as $searchName) {
+                                if (str_contains($pointName, strtolower($searchName))) {
+                                    return true;
+                                }
+                            }
+                            return false;
+                        });
+
+                        $allocationPointIds = $matchingPoints->pluck('id')->toArray();
+                        $allocationPointIds = array_unique($allocationPointIds);
+
+                        if (!empty($allocationPointIds)) {
+                            $query->whereIn('allocation_point_id', $allocationPointIds);
+                        } else {
+                            // Show nothing if no matching allocation points
+                            $query->whereRaw('1 = 0');
+                        }
+                    } catch (\Exception $e) {
+                        \Log::error('ListConfirmedAffixeds: Error filtering by allocation points', [
+                            'error' => $e->getMessage(),
+                            'user_id' => $user->id
+                        ]);
+                        $query->whereRaw('1 = 0');
+                    }
+                } else {
+                    // Show nothing if no permissions
+                    $query->whereRaw('1 = 0');
+                }
             } else {
-                // If user has no allocation points assigned, show no records
+                // Default: show nothing for other roles
                 $query->whereRaw('1 = 0');
             }
         }

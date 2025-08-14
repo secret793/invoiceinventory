@@ -14,7 +14,7 @@
                 </div>
                 <div class="text-right">
                     <div class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                        {{ $this->deviceRetrievalLogs->total() }} Records
+                        {{ $this->getDeviceRetrievalLogsProperty()->total() }} Records
                     </div>
                 </div>
             </div>
@@ -30,7 +30,7 @@
                         <label for="search" class="block text-xs font-medium text-gray-600 mb-1">Search</label>
                         <input type="text"
                                id="search"
-                               wire:model.live.debounce.300ms="reportFilters.search"
+                               wire:model.live.debounce.300ms="filters.search"
                                placeholder="Search device ID, BOE, vehicle..."
                                class="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-200 transition-all duration-200">
                     </div>
@@ -40,7 +40,7 @@
                         <label for="device_id" class="block text-xs font-medium text-gray-600 mb-1">Device ID</label>
                         <input type="text"
                                id="device_id"
-                               wire:model.live="reportFilters.device_id"
+                               wire:model.live="filters.device_id"
                                placeholder="Device ID"
                                class="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-200 transition-all duration-200">
                     </div>
@@ -50,7 +50,7 @@
                         <label for="boe" class="block text-xs font-medium text-gray-600 mb-1">BOE</label>
                         <input type="text"
                                id="boe"
-                               wire:model.live="reportFilters.boe"
+                               wire:model.live="filters.boe"
                                placeholder="BOE"
                                class="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-200 transition-all duration-200">
                     </div>
@@ -60,19 +60,22 @@
                         <label for="vehicle_number" class="block text-xs font-medium text-gray-600 mb-1">Vehicle Number</label>
                         <input type="text"
                                id="vehicle_number"
-                               wire:model.live="reportFilters.vehicle_number"
+                               wire:model.live="filters.vehicle_number"
                                placeholder="Vehicle #"
                                class="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-200 transition-all duration-200">
                     </div>
 
-                    <!-- Destination -->
+                    <!-- Allocation Point -->
                     <div>
-                        <label for="destination" class="block text-xs font-medium text-gray-600 mb-1">Destination</label>
-                        <input type="text"
-                               id="destination"
-                               wire:model.live="reportFilters.destination"
-                               placeholder="Destination"
-                               class="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-200 transition-all duration-200">
+                        <label for="allocation_point_id" class="block text-xs font-medium text-gray-600 mb-1">Allocation Point</label>
+                        <select id="allocation_point_id"
+                                wire:model.live="filters.allocation_point_id"
+                                class="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-200 transition-all duration-200">
+                            <option value="">All Allocation Points</option>
+                            @foreach(\App\Models\AllocationPoint::withoutGlobalScopes()->orderBy('name')->get() as $allocationPoint)
+                                <option value="{{ $allocationPoint->id }}">{{ $allocationPoint->name }}</option>
+                            @endforeach
+                        </select>
                     </div>
                 </div>
 
@@ -83,7 +86,7 @@
                         <label for="start_date" class="block text-xs font-medium text-gray-600 mb-1">Start Date</label>
                         <input type="date"
                                id="start_date"
-                               wire:model.live="reportFilters.start_date"
+                               wire:model.live="filters.start_date"
                                class="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-200 transition-all duration-200">
                     </div>
 
@@ -92,7 +95,7 @@
                         <label for="end_date" class="block text-xs font-medium text-gray-600 mb-1">End Date</label>
                         <input type="date"
                                id="end_date"
-                               wire:model.live="reportFilters.end_date"
+                               wire:model.live="filters.end_date"
                                class="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-200 transition-all duration-200">
                     </div>
 
@@ -101,7 +104,7 @@
                         <label for="start_time" class="block text-xs font-medium text-gray-600 mb-1">Start Time</label>
                         <input type="time"
                                id="start_time"
-                               wire:model.live="reportFilters.start_time"
+                               wire:model.live="filters.start_time"
                                class="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-200 transition-all duration-200">
                     </div>
 
@@ -110,7 +113,7 @@
                         <label for="end_time" class="block text-xs font-medium text-gray-600 mb-1">End Time</label>
                         <input type="time"
                                id="end_time"
-                               wire:model.live="reportFilters.end_time"
+                               wire:model.live="filters.end_time"
                                class="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-200 transition-all duration-200">
                     </div>
 
@@ -118,7 +121,7 @@
                     <div>
                         <label for="retrieval_status" class="block text-xs font-medium text-gray-600 mb-1">Retrieval Status</label>
                         <select id="retrieval_status"
-                                wire:model.live="reportFilters.retrieval_status"
+                                wire:model.live="filters.retrieval_status"
                                 class="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-200 transition-all duration-200">
                             <option value="">All Status</option>
                             <option value="NOT_RETRIEVED">Not Retrieved</option>
@@ -131,7 +134,7 @@
                     <div>
                         <label for="action_type" class="block text-xs font-medium text-gray-600 mb-1">Action Type</label>
                         <select id="action_type"
-                                wire:model.live="reportFilters.action_type"
+                                wire:model.live="filters.action_type"
                                 class="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-200 transition-all duration-200">
                             <option value="">All Actions</option>
                             <option value="RETRIEVED">Retrieved</option>
@@ -142,11 +145,11 @@
 
                 <!-- Action Buttons Row -->
                 <div class="flex justify-end space-x-2">
-                    <button type="button" wire:click="resetReportFilters"
+                    <button type="button" wire:click="resetFilters"
                             class="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-all duration-200 shadow-sm">
                         Reset
                     </button>
-                    <button type="button" wire:click="applyReportFilters"
+                    <button type="button" wire:click="applyFilters"
                             class="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-all duration-200 shadow-sm">
                        Apply Filters
                     </button>
@@ -164,7 +167,7 @@
                                 'device_id' => 'Device ID',
                                 'boe' => 'BOE/SAD',
                                 'vehicle_number' => 'Vehicle #',
-                                'destination' => 'Destination',
+                                'allocation_point_id' => 'Allocation Point',
                                 'retrieval_status' => 'Status',
                                 'action_type' => 'Action',
                                 'retrieval_date' => 'Retrieval Date',
@@ -180,8 +183,8 @@
                                         class="flex items-center space-x-1 text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900 transition-colors duration-150">
                                     <span>{{ $label }}</span>
                                     @php
-                                        $sortBy = $this->reportFilters['sort_by'] ?? 'created_at';
-                                        $sortDirection = $this->reportFilters['sort_direction'] ?? 'desc';
+                                        $sortBy = $this->filters['sort_by'] ?? 'created_at';
+                                        $sortDirection = $this->filters['sort_direction'] ?? 'desc';
                                     @endphp
                                     @if($sortBy === $col)
                                         @if($sortDirection === 'asc')
@@ -204,7 +207,7 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
-                    @forelse($this->deviceRetrievalLogs as $log)
+                    @forelse($this->getDeviceRetrievalLogsProperty() as $log)
                         <tr class="hover:bg-gray-50/50 transition-colors duration-150">
                             <td class="px-6 py-5 whitespace-nowrap">
                                 <div class="text-sm font-medium text-gray-900">{{ $log->device->device_id ?? 'N/A' }}</div>
@@ -218,7 +221,7 @@
                                 <div class="text-sm text-gray-900">{{ $log->vehicle_number ?: 'N/A' }}</div>
                             </td>
                             <td class="px-6 py-5 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">{{ \Illuminate\Support\Str::limit($log->destination, 30) ?: 'N/A' }}</div>
+                                <div class="text-sm text-gray-900">{{ $log->allocationPoint ? $log->allocationPoint->name : 'N/A' }}</div>
                             </td>
                             <td class="px-6 py-5 whitespace-nowrap">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
@@ -270,14 +273,14 @@
         </div>
 
         <!-- Pagination -->
-        @if($this->deviceRetrievalLogs->hasPages())
+        @if($this->getDeviceRetrievalLogsProperty()->hasPages())
             <div class="px-6 py-4 border-t border-gray-200 bg-gray-50/50">
                 <div class="flex items-center justify-between">
                     <div class="text-sm text-gray-700">
-                        Showing {{ $this->deviceRetrievalLogs->firstItem() ?? 0 }} to {{ $this->deviceRetrievalLogs->lastItem() ?? 0 }} of {{ $this->deviceRetrievalLogs->total() }} results
+                        Showing {{ $this->getDeviceRetrievalLogsProperty()->firstItem() ?? 0 }} to {{ $this->getDeviceRetrievalLogsProperty()->lastItem() ?? 0 }} of {{ $this->getDeviceRetrievalLogsProperty()->total() }} results
                     </div>
                     <div>
-                        {{ $this->deviceRetrievalLogs->links() }}
+                        {{ $this->getDeviceRetrievalLogsProperty()->links() }}
                     </div>
                 </div>
             </div>
