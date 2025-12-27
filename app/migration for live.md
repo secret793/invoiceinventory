@@ -1,0 +1,3 @@
+php artisan migrate --path=database/migrations/report2/2025_09_11_102200_create_device_retrieval_report_2_logs_table.php
+
+php artisan migrate --path=database/migrations/2025_10_26_194727_update_device_retrieval_report2_logs_table.php
