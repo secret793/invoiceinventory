@@ -1,0 +1,5 @@
+# Laravel / PHP
+/vendor
+/node_modules
+.env
+composer.lock   # ← only add this if you want to ignore lock file (most people commit it)
