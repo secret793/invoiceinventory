@@ -8,6 +8,8 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 use App\Models\AllocationPoint;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
 
 class User extends Authenticatable
 {
@@ -73,5 +75,16 @@ class User extends Authenticatable
             $user->permissions()->detach();
             $user->permissionStored()->delete();
         });
+    }
+
+    public function canAccessPanel(Panel $panel): bool
+    {
+        // Your secure logic here (temporary return true for testing)
+        return true;
+
+        // Recommended secure version (change this!)
+        // return $this->hasRole('admin') || $this->hasRole('cook');
+        // or
+        // return $this->email === 'superadmin@example.com';
     }
 }
