@@ -140,10 +140,10 @@ class ListMonitorings extends ListRecords
                     ->label('Manifest Date')
                     ->date()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('note')
-                    ->label('Note')
-                    ->wrap()
-                    ->searchable(),
+                // Tables\Columns\TextColumn::make('note')
+                //     ->label('Note')
+                //     ->wrap()
+                //     ->searchable(),
                 Tables\Columns\TextColumn::make('destination')
                     ->label('Destination')
                     ->sortable()

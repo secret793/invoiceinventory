@@ -81,6 +81,10 @@ class ListDeviceRetrievals extends ListRecords
     public string $destinationSearch = '';
     public string $allocationPointSearch = '';
     
+    // Manual overstay days update - track selected device
+    public ?int $selectedDeviceRetrievalId = null;
+    public ?DeviceRetrievalModel $selectedDeviceRetrieval = null;
+    
     // Cache duration in seconds
     protected $cacheDuration = 300; // 5 minutes
 
@@ -205,6 +209,112 @@ class ListDeviceRetrievals extends ListRecords
         // Initialize overstay search properties
         $this->destinationSearch = '';
         $this->allocationPointSearch = '';
+    }
+
+    /**
+     * Check if exactly one device is selected and get it
+     */
+    public function getSelectedDeviceForOverstayUpdate(): ?DeviceRetrievalModel
+    {
+        // Get selected records from the table
+        $selectedRecords = $this->selectedTableRecords;
+        
+        // If no records selected, return null
+        if (empty($selectedRecords)) {
+            return null;
+        }
+        
+        // If more than one record selected, return null
+        if (count($selectedRecords) > 1) {
+            return null;
+        }
+        
+        // Get the single selected record ID
+        $selectedId = array_key_first($selectedRecords);
+        
+        // Load and return the device retrieval
+        return DeviceRetrievalModel::find($selectedId);
+    }
+
+    /**
+     * Handle manual overstay days update button click
+     */
+    public function openManualOverstayModal(): void
+    {
+        $device = $this->getSelectedDeviceForOverstayUpdate();
+        
+        if ($device === null) {
+            $selectedCount = count($this->selectedTableRecords ?? []);
+            
+            if ($selectedCount === 0) {
+                \Filament\Notifications\Notification::make()
+                    ->danger()
+                    ->title('No Device Selected')
+                    ->body('Please select a device retrieval record first.')
+                    ->send();
+            } else {
+                \Filament\Notifications\Notification::make()
+                    ->danger()
+                    ->title('Multiple Devices Selected')
+                    ->body('Please select only ONE device retrieval record.')
+                    ->send();
+            }
+            return;
+        }
+        
+        // Store the selected device for the modal
+        $this->selectedDeviceRetrievalId = $device->id;
+        $this->selectedDeviceRetrieval = $device;
+        
+        // Dispatch event to open the modal
+        $this->dispatchBrowserEvent('open-manual-overstay-modal');
+    }
+
+    /**
+     * Handle manual overstay days update submission
+     */
+    public function submitManualOverstayUpdate(array $data): void
+    {
+        try {
+            $record = DeviceRetrievalModel::find($data['device_retrieval_id'] ?? $this->selectedDeviceRetrievalId);
+            
+            if (!$record) {
+                \Filament\Notifications\Notification::make()
+                    ->danger()
+                    ->title('Error')
+                    ->body('Device retrieval record not found.')
+                    ->send();
+                return;
+            }
+
+            // Store old value for notification
+            $oldValue = $record->overstay_days;
+            $newValue = (int) $data['new_overstay_days'];
+
+            // Update the overstay_days field - will trigger the observer
+            // The observer will sync this to the Monitoring table automatically
+            $record->update([
+                'overstay_days' => $newValue
+            ]);
+
+            $deviceId = $record->device?->device_id ?? 'Unknown';
+
+            \Filament\Notifications\Notification::make()
+                ->title('Overstay Days Updated Successfully')
+                ->body("Device $deviceId: Updated from $oldValue to $newValue days. Observer will continue monitoring.")
+                ->success()
+                ->send();
+            
+            // Clear selected device
+            $this->selectedDeviceRetrievalId = null;
+            $this->selectedDeviceRetrieval = null;
+        } catch (\Exception $e) {
+            \Filament\Notifications\Notification::make()
+                ->danger()
+                ->title('Error Updating Overstay Days')
+                ->body('An error occurred: ' . $e->getMessage())
+                ->send();
+        }
     }
 
     /**
@@ -436,6 +546,58 @@ class ListDeviceRetrievals extends ListRecords
                     'hasActiveOverstayFilters' => $this->hasActiveOverstayFilters(),
                 ]))
                 ->visible(fn () => auth()->check()),  // All logged-in users can see this button
+            
+            // Manual Overstay Days Update action - for Super Admin only
+            Actions\Action::make('manualOverstayDaysUpdate')
+                ->label('Manual Overstay Days')
+                ->icon('heroicon-o-pencil-square')
+                ->color('warning')
+                ->modalHeading('Update Device Overstay Days')
+                ->modalWidth('lg')
+                ->form(function () {
+                    // Check if exactly one device is selected BEFORE showing form
+                    $device = $this->getSelectedDeviceForOverstayUpdate();
+                    
+                    if ($device === null) {
+                        $selectedCount = count($this->selectedTableRecords ?? []);
+                        
+                        if ($selectedCount === 0) {
+                            \Filament\Notifications\Notification::make()
+                                ->danger()
+                                ->title('No Device Selected')
+                                ->body('Please select a device retrieval record first by checking the checkbox.')
+                                ->send();
+                        } else {
+                            \Filament\Notifications\Notification::make()
+                                ->danger()
+                                ->title('Multiple Devices Selected')
+                                ->body('Please select only ONE device retrieval record.')
+                                ->send();
+                        }
+                        
+                        return [];
+                    }
+                    
+                    // Store the selected device for use in the action
+                    $this->selectedDeviceRetrievalId = $device->id;
+                    $this->selectedDeviceRetrieval = $device;
+                    
+                    return [
+                        Forms\Components\TextInput::make('new_overstay_days')
+                            ->label('Enter New Overstay Days Number')
+                            ->numeric()
+                            ->required()
+                            ->minValue(0)
+                            ->helperText('Observer will continue to monitor and update automatically.'),
+                    ];
+                })
+                ->action(function (array $data): void {
+                    // Only execute if we have a selected device
+                    if ($this->selectedDeviceRetrievalId) {
+                        $this->submitManualOverstayUpdate($data);
+                    }
+                })
+                ->visible(fn () => auth()->user()?->hasRole('Super Admin')),
         ];
     }
 
