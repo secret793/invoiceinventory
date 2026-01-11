@@ -430,6 +430,16 @@ class ViewAssignmentDataEntry extends Page implements HasTable
                 ->modalWidth('4xl')
                 ->form($this->getReceiptFormSchema())
                 ->action(function (array $data): void {
+                    // Validate that either route_id or long_route_id is selected
+                    if (empty($data['route_id']) && empty($data['long_route_id'])) {
+                        \Filament\Notifications\Notification::make()
+                            ->title('Validation Error')
+                            ->body('Please select either Route or Long Route before submitting the form.')
+                            ->danger()
+                            ->send();
+                        return;
+                    }
+                    
                     $receipt = $this->createReceiptFromModalAndReturn($data);
                 })
                 ->visible(fn () => $this->dataEntryAssignment && auth()->user()->can('create', Receipt::class)),
@@ -1368,6 +1378,7 @@ class ViewAssignmentDataEntry extends Page implements HasTable
                 ->columns(3),
 
             Forms\Components\Section::make('Route Selection')
+                ->description('Select either Route OR Long Route (at least one is required)')
                 ->schema([
                     Forms\Components\Select::make('route_id')
                         ->label('Route')

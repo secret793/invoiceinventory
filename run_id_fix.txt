@@ -1,0 +1,5 @@
+DB::statement('ALTER TABLE receipts MODIFY COLUMN id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT');
+echo "✅ Fix applied successfully!\n";
+echo "Verifying...\n";
+$verify = DB::select('SHOW COLUMNS FROM receipts WHERE Field = "id"');
+print_r($verify[0]);

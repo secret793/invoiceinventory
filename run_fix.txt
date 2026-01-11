@@ -1,0 +1,2 @@
+DB::statement("ALTER TABLE `receipts` MODIFY `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY");
+echo "✓ Fixed! Receipts table ID now has AUTO_INCREMENT.\n";

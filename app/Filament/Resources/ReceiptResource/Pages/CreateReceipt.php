@@ -13,6 +13,17 @@ class CreateReceipt extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        // Validate that either route_id or long_route_id is selected
+        if (empty($data['route_id']) && empty($data['long_route_id'])) {
+            \Filament\Notifications\Notification::make()
+                ->title('Validation Error')
+                ->body('Please select either Route or Long Route.')
+                ->danger()
+                ->send();
+            
+            $this->halt();
+        }
+        
         // Generate receipt number
         $data['receipt_number'] = $this->generateReceiptNumber();
         

@@ -75,12 +75,11 @@ class ReceiptResource extends Resource
 
                 // Section 2: Route Selection
                 Section::make('Route Selection')
-                    ->description('Select route and specify truck count')
+                    ->description('Select either Route OR Long Route (at least one is required)')
                     ->schema([
                         Select::make('route_id')
                             ->label('Route')
                             ->relationship('route', 'name')
-                            ->required()
                             ->searchable()
                             ->preload()
                             ->reactive()
@@ -96,7 +95,8 @@ class ReceiptResource extends Resource
                             ->label('Long Route')
                             ->relationship('longRoute', 'name')
                             ->searchable()
-                            ->preload(),
+                            ->preload()
+                            ->reactive(),
 
                         TextInput::make('billing_unit')
                             ->label('Billing Unit')
