@@ -133,7 +133,7 @@ class ReceiptResource extends Resource
 
                         Select::make('destination_id')
                             ->label('Destination')
-                            ->relationship('destination', 'name')
+                            ->relationship('destination', 'name', fn ($query) => $query->where('status', 'Active'))
                             ->required()
                             ->searchable()
                             ->preload(),

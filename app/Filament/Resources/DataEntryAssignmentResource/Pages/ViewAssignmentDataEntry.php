@@ -938,7 +938,7 @@ class ViewAssignmentDataEntry extends Page implements HasTable
                             ->searchable(),
                             Forms\Components\Select::make('destination_id')
                             ->label('Destination')
-                            ->options(Destination::pluck('name', 'id'))
+                            ->options(Destination::where('status', 'Active')->pluck('name', 'id'))
                             ->required()
                             ->searchable(),
                         Forms\Components\Select::make('long_route_id')
@@ -1031,7 +1031,7 @@ class ViewAssignmentDataEntry extends Page implements HasTable
 
                         Forms\Components\Select::make('destination_id')
                             ->label('Destination')
-                            ->relationship('destination', 'name')
+                            ->relationship('destination', 'name', fn ($query) => $query->where('status', 'Active'))
                             ->searchable()
                             ->required(),
 
@@ -1251,7 +1251,7 @@ class ViewAssignmentDataEntry extends Page implements HasTable
 
             Forms\Components\Select::make('destination_id')
                 ->label('Destination')
-                ->relationship('destination', 'name')
+                ->relationship('destination', 'name', fn ($query) => $query->where('status', 'Active'))
                 ->required()
                 ->searchable()
                 ->reactive()
@@ -1493,7 +1493,7 @@ class ViewAssignmentDataEntry extends Page implements HasTable
 
                     Forms\Components\Select::make('destination_id')
                         ->label('Destination')
-                        ->options(Destination::pluck('name', 'id'))
+                        ->options(Destination::where('status', 'Active')->pluck('name', 'id'))
                         ->searchable()
                         ->preload(),
                 ])
