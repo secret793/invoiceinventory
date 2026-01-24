@@ -1511,7 +1511,25 @@ class ViewAssignmentDataEntry extends Page implements HasTable
                     Forms\Components\TextInput::make('exchange_rate_used')
                         ->label('Exchange Rate (GMD/USD)')
                         ->numeric()
-                        ->disabled()
+                        ->required()
+                        ->minValue(50)
+                        ->maxValue(100)
+                        ->step(0.0001)
+                        ->helperText('Auto-fetched from API. Editable if rate drops below standard.')
+                        ->reactive()
+                        ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                            if (!$state) return;
+                            
+                            // Recalculate unit charge and total when exchange rate is manually changed
+                            $baseUSD = $get('base_unit_charge_usd');
+                            $trucks = $get('moving_trucks') ?? 1;
+                            
+                            if ($baseUSD) {
+                                $unitChargGMD = $baseUSD * $state;
+                                $set('unit_charge_gmd', $unitChargGMD);
+                                $set('total_charge_gmd', $unitChargGMD * $trucks);
+                            }
+                        })
                         ->dehydrated(),
 
                     Forms\Components\TextInput::make('unit_charge_gmd')

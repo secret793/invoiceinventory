@@ -142,7 +142,7 @@ class ReceiptResource extends Resource
 
                 // Section 4: Pricing (Auto-Calculated)
                 Section::make('Pricing Calculation')
-                    ->description('Auto-calculated based on route and exchange rate')
+                    ->description('Auto-calculated based on route and exchange rate. Exchange rate is editable.')
                     ->schema([
                         TextInput::make('base_unit_charge_usd')
                             ->label('Base Unit Charge (USD)')
@@ -154,8 +154,11 @@ class ReceiptResource extends Resource
                         TextInput::make('exchange_rate_used')
                             ->label('Exchange Rate (GMD/USD)')
                             ->numeric()
-                            ->disabled()
-                            ->dehydrated(false)
+                            ->required()
+                            ->minValue(50)
+                            ->maxValue(100)
+                            ->step(0.0001)
+                            ->helperText('Auto-fetched from API. Editable if rate drops below standard.')
                             ->reactive()
                             ->afterStateUpdated(function ($state, Set $set, $get) {
                                 if ($state) {
