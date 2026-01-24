@@ -42,6 +42,7 @@ use App\Filament\Resources\ReportResource;
 use App\Filament\Resources\RoleResource;
 use App\Filament\Resources\RouteResource;
 use App\Filament\Resources\StoreResource;
+use App\Filament\Resources\SystemSettingResource;
 use App\Filament\Resources\TransferResource;
 use App\Filament\Resources\UserResource;
 use App\Filament\Resources\DispatchLogResource;
@@ -478,6 +479,11 @@ class AdminPanelProvider extends PanelProvider
                                 ->icon('heroicon-o-key')
                                 ->url(PermissionResource::getUrl())
                         );
+                        
+                        // Add System Settings at the bottom
+                        $configItems[] = NavigationItem::make('System Settings')
+                            ->icon('heroicon-o-cog-6-tooth')
+                            ->url(SystemSettingResource::getUrl());
                     }
 
                     $builder->group('Configuration', $configItems);

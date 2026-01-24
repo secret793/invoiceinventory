@@ -142,7 +142,7 @@ class ReceiptResource extends Resource
 
                 // Section 4: Pricing (Auto-Calculated)
                 Section::make('Pricing Calculation')
-                    ->description('Auto-calculated based on route and exchange rate. Exchange rate is editable.')
+                    ->description('Auto-calculated. Exchange rate is set by Admin in System Settings')
                     ->schema([
                         TextInput::make('base_unit_charge_usd')
                             ->label('Base Unit Charge (USD)')
@@ -154,26 +154,9 @@ class ReceiptResource extends Resource
                         TextInput::make('exchange_rate_used')
                             ->label('Exchange Rate (GMD/USD)')
                             ->numeric()
-                            ->required()
-                            ->minValue(50)
-                            ->maxValue(100)
-                            ->step(0.0001)
-                            ->helperText('Auto-fetched from API. Editable if rate drops below standard.')
-                            ->reactive()
-                            ->afterStateUpdated(function ($state, Set $set, $get) {
-                                if ($state) {
-                                    $baseCharge = $get('base_unit_charge_usd');
-                                    if ($baseCharge) {
-                                        $unitCharge = $baseCharge * $state;
-                                        $set('unit_charge_gmd', $unitCharge);
-                                        
-                                        $trucks = $get('moving_trucks');
-                                        if ($trucks) {
-                                            $set('total_charge_gmd', $unitCharge * $trucks);
-                                        }
-                                    }
-                                }
-                            }),
+                            ->disabled()
+                            ->dehydrated(false)
+                            ->helperText('Controlled by Admin in System Settings'),
 
                         TextInput::make('unit_charge_gmd')
                             ->label('Unit Charge (GMD)')
