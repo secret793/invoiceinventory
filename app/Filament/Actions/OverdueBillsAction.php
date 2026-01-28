@@ -266,14 +266,16 @@ class OverdueBillsAction extends Action
                         'paid_by' => $data['paid_by'],
                         'received_by' => $data['received_by'],
                         'logo_path' => $logoPath,
-                        'status' => 'PP', // Changed from 'pending_approval' to 'PP'
+                        'status' => 'PD', // Auto-set as Paid when generated
+                        'approved_by' => auth()->id(),
+                        'approved_at' => now(),
                     ]);
 
                     DB::commit();
 
                     Notification::make()
                         ->title('Invoice Created Successfully')
-                        ->body('The invoice has been created and is pending finance approval.')
+                        ->body('The invoice has been created and marked as paid.')
                         ->success()
                         ->send();
 
