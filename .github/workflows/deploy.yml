@@ -1,0 +1,83 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Production VPS
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Deploy to VPS via SSH
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        password: ${{ secrets.VPS_PASSWORD }}
+        port: 22
+        script: |
+          echo "🚀 Starting deployment..."
+          
+          # Navigate to project directory
+          cd /var/www/invoiceinventory || exit 1
+          
+          # Backup .env file
+          echo "📦 Backing up .env file..."
+          cp .env .env.backup
+          
+          # Enable maintenance mode
+          echo "🔧 Enabling maintenance mode..."
+          php artisan down || true
+          
+          # Pull latest code from GitHub
+          echo "📥 Pulling latest code..."
+          git fetch origin
+          git reset --hard origin/master
+          
+          # Restore .env file
+          echo "📄 Restoring .env file..."
+          cp .env.backup .env
+          
+          # Install/update dependencies
+          echo "📚 Installing Composer dependencies..."
+          composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
+          
+          # Clear and cache config
+          echo "🧹 Clearing caches..."
+          php artisan cache:clear
+          php artisan config:clear
+          php artisan route:clear
+          php artisan view:clear
+          
+          # Run migrations
+          echo "🗄️ Running database migrations..."
+          php artisan migrate --force
+          
+          # Optimize application
+          echo "⚡ Optimizing application..."
+          php artisan config:cache
+          php artisan route:cache
+          php artisan view:cache
+          
+          # Set proper permissions
+          echo "🔐 Setting permissions..."
+          sudo chown -R www-data:www-data /var/www/invoiceinventory/storage
+          sudo chown -R www-data:www-data /var/www/invoiceinventory/bootstrap/cache
+          sudo chmod -R 775 /var/www/invoiceinventory/storage
+          sudo chmod -R 775 /var/www/invoiceinventory/bootstrap/cache
+          
+          # Disable maintenance mode
+          echo "✅ Disabling maintenance mode..."
+          php artisan up
+          
+          # Clean up
+          rm -f .env.backup
+          
+          echo "🎉 Deployment completed successfully!"
+          echo "📅 Deployed at: $(date)"
