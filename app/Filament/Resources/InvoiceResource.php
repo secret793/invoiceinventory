@@ -203,6 +203,12 @@ class InvoiceResource extends Resource
                     ->label('SAD No')
                     ->searchable(),
 
+                Tables\Columns\TextColumn::make('destination')
+                    ->label('Destination')
+                    ->searchable()
+                    ->sortable()
+                    ->formatStateUsing(fn ($record) => $record->deviceRetrieval?->destination?->name ?? $record->destination ?? '-'),
+
                 Tables\Columns\TextColumn::make('regime')
                     ->label('Regime')
                     ->searchable(),
@@ -262,6 +268,22 @@ class InvoiceResource extends Resource
                     ->dateTime(),
             ])
             ->filters([
+                Tables\Filters\SelectFilter::make('destination')
+                    ->label('Destination')
+                    ->options(function () {
+                        return Invoice::query()
+                            ->whereNotNull('destination')
+                            ->distinct()
+                            ->orderBy('destination')
+                            ->pluck('destination', 'destination');
+                    })
+                    ->query(function (Builder $query, array $data): Builder {
+                        if (!empty($data['value'])) {
+                            return $query->where('destination', $data['value']);
+                        }
+                        return $query;
+                    }),
+
                 Tables\Filters\SelectFilter::make('status')
                     ->options([
                         'PP' => 'Pending Payment',
