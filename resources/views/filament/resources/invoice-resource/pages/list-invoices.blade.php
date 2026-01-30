@@ -27,6 +27,49 @@
                         />
                     </div>
 
+                    {{-- Destination Filter (Searchable Dropdown) --}}
+                    <div class="lg:col-span-1 relative">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Destination
+                        </label>
+                        <input 
+                            type="text" 
+                            wire:model.debounce.300ms="destinationSearch"
+                            placeholder="Search destinations..."
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg 
+                                   text-gray-900 dark:text-white dark:bg-gray-700
+                                   focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                                   transition placeholder-gray-400 dark:placeholder-gray-500"
+                        />
+                        
+                        {{-- Dropdown Results --}}
+                        @if($destinationSearch && count($filteredDestinations) > 0)
+                            <div class="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg z-20 max-h-48 overflow-y-auto">
+                                @foreach($filteredDestinations as $id => $name)
+                                    <button type="button"
+                                            wire:click="selectDestination('{{ $id }}')"
+                                            class="w-full text-left px-4 py-2 hover:bg-blue-50 dark:hover:bg-gray-600 text-gray-900 dark:text-white transition-colors">
+                                        {{ $name }}
+                                    </button>
+                                @endforeach
+                            </div>
+                        @endif
+                        
+                        {{-- Selected Destination Display --}}
+                        @if($destinationFilter)
+                            <div class="mt-2 flex items-center gap-2 text-xs">
+                                <span class="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1 rounded">
+                                    {{ $destinationFilter }}
+                                </span>
+                                <button type="button"
+                                        wire:click="clearDestination()"
+                                        class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 font-bold">
+                                    ✕
+                                </button>
+                            </div>
+                        @endif
+                    </div>
+
                     {{-- Regime Filter (Searchable Dropdown) --}}
                     <div class="lg:col-span-1 relative">
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -345,6 +388,7 @@
                     <tr>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300">Ref #</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300">SAD/BOE</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300">Destination</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300">Device</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300">Regime</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300">Agent</th>
@@ -359,6 +403,7 @@
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                             <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{{ $record->reference_number ?? '-' }}</td>
                             <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $record->sad_boe ?? '-' }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $record->deviceRetrieval?->destination?->name ?? $record->destination ?? '-' }}</td>
                             <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $record->device_number ?? '-' }}</td>
                             <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $record->regime?->name ?? '-' }}</td>
                             <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{{ $record->agent ?? '-' }}</td>

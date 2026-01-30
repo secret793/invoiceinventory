@@ -19,6 +19,7 @@ class ListInvoices extends ListRecords
     // FILTER PROPERTIES (Bound to wire directives in Blade)
     // ═════════════════════════════════════════════════════════
     public string $referenceSearch = '';           // Search invoices by ref #
+    public ?string $destinationFilter = null;      // Filter by destination
     public ?string $regimeFilter = null;           // Filter by regime
     public ?string $allocationPointFilter = null;  // Filter by allocation point
     public ?string $statusFilter = null;           // Filter by PP/PD/WAIVED/RJ
@@ -28,6 +29,7 @@ class ListInvoices extends ListRecords
     public string $sortDirection = 'desc';         // ASC or DESC
     
     // Search box properties for autocomplete
+    public string $destinationSearch = '';
     public string $regimeSearch = '';
     public string $allocationPointSearch = '';
 
@@ -46,6 +48,11 @@ class ListInvoices extends ListRecords
                   ->orWhereRaw('LOWER(sad_boe) LIKE ?', ['%' . strtolower($this->referenceSearch) . '%'])
                   ->orWhereRaw('LOWER(device_number) LIKE ?', ['%' . strtolower($this->referenceSearch) . '%']);
             });
+        }
+
+        // Destination filter
+        if (!empty($this->destinationFilter)) {
+            $query->where('destination', $this->destinationFilter);
         }
 
         // Regime filter
@@ -86,6 +93,32 @@ class ListInvoices extends ListRecords
             ->where('is_active', true)
             ->orderBy('name')
             ->pluck('name', 'id');
+    }
+
+    #[Computed]
+    public function availableDestinations()
+    {
+        return Invoice::query()
+            ->whereNotNull('destination')
+            ->distinct()
+            ->orderBy('destination')
+            ->pluck('destination', 'destination');
+    }
+
+    #[Computed]
+    public function filteredDestinations()
+    {
+        if (empty($this->destinationSearch)) {
+            return collect();
+        }
+        
+        return Invoice::query()
+            ->whereNotNull('destination')
+            ->where('destination', 'LIKE', '%' . $this->destinationSearch . '%')
+            ->distinct()
+            ->orderBy('destination')
+            ->pluck('destination', 'destination')
+            ->take(10);
     }
 
     #[Computed]
@@ -147,7 +180,17 @@ class ListInvoices extends ListRecords
         $this->regimeFilter = null;
         $this->regimeSearch = '';
     }
+    public function selectDestination(string $destination): void
+    {
+        $this->destinationFilter = $destination;
+        $this->destinationSearch = '';
+    }
 
+    public function clearDestination(): void
+    {
+        $this->destinationFilter = null;
+        $this->destinationSearch = '';
+    }
     public function selectAllocationPoint(string $apId): void
     {
         $this->allocationPointFilter = $apId;
