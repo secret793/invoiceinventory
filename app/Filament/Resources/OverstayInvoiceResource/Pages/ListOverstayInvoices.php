@@ -46,11 +46,9 @@ class ListOverstayInvoices extends ListRecords
             });
         }
 
-        // Filter by destination (via device_retrieval)
+        // Filter by destination (match destination string)
         if (!empty($this->destinationFilter)) {
-            $query->whereHas('deviceRetrieval', function ($q) {
-                $q->where('destination_id', $this->destinationFilter);
-            });
+            $query->where('destination', $this->destinationFilter);
         }
 
         // Filter by allocation point (via device_retrieval)
@@ -77,17 +75,16 @@ class ListOverstayInvoices extends ListRecords
     #[Computed]
     public function availableDestinations()
     {
-        return Destination::query()
-            ->whereHas('deviceRetrievals', function ($q) {
-                $q->whereHas('invoices', function ($innerQ) {
-                    $innerQ->where(function ($cq) {
-                        $cq->where('overstay_days', '>', 0)
-                          ->orWhere('status', 'WAIVED');
-                    });
-                });
+        // Get unique destination strings from invoices
+        return Invoice::query()
+            ->where(function ($q) {
+                $q->where('overstay_days', '>', 0)
+                  ->orWhere('status', 'WAIVED');
             })
-            ->orderBy('name')
-            ->pluck('name', 'id');
+            ->whereNotNull('destination')
+            ->distinct()
+            ->orderBy('destination')
+            ->pluck('destination', 'destination');
     }
 
     #[Computed]
@@ -113,18 +110,17 @@ class ListOverstayInvoices extends ListRecords
             return collect();
         }
         
-        return Destination::query()
-            ->whereHas('deviceRetrievals', function ($q) {
-                $q->whereHas('invoices', function ($innerQ) {
-                    $innerQ->where(function ($cq) {
-                        $cq->where('overstay_days', '>', 0)
-                          ->orWhere('status', 'WAIVED');
-                    });
-                });
+        // Filter destination strings that match search
+        return Invoice::query()
+            ->where(function ($q) {
+                $q->where('overstay_days', '>', 0)
+                  ->orWhere('status', 'WAIVED');
             })
-            ->where('name', 'LIKE', '%' . $this->destinationSearch . '%')
-            ->orderBy('name')
-            ->pluck('name', 'id')
+            ->whereNotNull('destination')
+            ->where('destination', 'LIKE', '%' . $this->destinationSearch . '%')
+            ->distinct()
+            ->orderBy('destination')
+            ->pluck('destination', 'destination')
             ->take(10);
     }
 
