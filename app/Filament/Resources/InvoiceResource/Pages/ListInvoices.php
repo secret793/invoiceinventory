@@ -206,6 +206,7 @@ class ListInvoices extends ListRecords
     public function resetFilters(): void
     {
         $this->referenceSearch = '';
+        $this->destinationFilter = null;
         $this->regimeFilter = null;
         $this->allocationPointFilter = null;
         $this->allocationPointSearch = '';
@@ -279,11 +280,13 @@ class ListInvoices extends ListRecords
             'records' => $records,
             'statistics' => $statistics,
             'hasDateFilter' => !empty($this->startDate) || !empty($this->endDate),
+            'availableDestinations' => $this->availableDestinations,
             'availableRegimes' => $this->availableRegimes,
             'filteredRegimes' => $this->filteredRegimes,
             'availableAllocationPoints' => $this->availableAllocationPoints,
             'filteredAllocationPoints' => $this->filteredAllocationPoints,
             'referenceSearch' => $this->referenceSearch,
+            'destinationFilter' => $this->destinationFilter,
             'regimeFilter' => $this->regimeFilter,
             'allocationPointFilter' => $this->allocationPointFilter,
             'statusFilter' => $this->statusFilter,
