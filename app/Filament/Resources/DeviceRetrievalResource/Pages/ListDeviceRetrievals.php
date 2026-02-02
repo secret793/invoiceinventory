@@ -670,10 +670,11 @@ class ListDeviceRetrievals extends ListRecords
                     }),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('transfer_status')
+                Tables\Filters\SelectFilter::make('retrieval_status')
+                    ->label('Status')
                     ->options([
-                        'pending' => 'Transfer Pending',
-                        'completed' => 'Transfer Completed',
+                        'RETRIEVED' => 'Retrieved',
+                        'NOT_RETRIEVED' => 'Not Retrieved',
                     ]),
                 Tables\Filters\SelectFilter::make('payment_status')
                     ->options([

@@ -158,17 +158,12 @@ class DeviceRetrievalResource extends Resource
                         'PENDING' => 'Pending',
                         'COMPLETED' => 'Completed',
                     ]),
-                Tables\Filters\SelectFilter::make('transfer_status')
-                    ->options([
-                        'pending' => 'Transfer Pending',
-                        'completed' => 'Transfer Completed',
-                    ]),
                 Tables\Filters\SelectFilter::make('retrieval_status')
+                    ->label('Status')
                     ->options([
-                        'NOT_RETRIEVED' => 'Not Retrieved',
                         'RETRIEVED' => 'Retrieved',
-                    ])
-                    ->label('Retrieval Status'),
+                        'NOT_RETRIEVED' => 'Not Retrieved',
+                    ]),
 
                 Tables\Filters\Filter::make('overstay_days')
                     ->form([
