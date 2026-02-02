@@ -48,12 +48,18 @@ jobs:
           echo "📚 Installing Composer dependencies..."
           composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
           
+          # Build frontend assets (CRITICAL for Filament modals)
+          echo "🎨 Building frontend assets..."
+          npm install
+          npm run build
+          
           # Clear and cache config
           echo "🧹 Clearing caches..."
           php artisan cache:clear
           php artisan config:clear
           php artisan route:clear
           php artisan view:clear
+          php artisan filament:cache-components
           
           # Run migrations
           echo "🗄️ Running database migrations..."
