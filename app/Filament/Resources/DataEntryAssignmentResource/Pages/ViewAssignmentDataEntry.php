@@ -428,8 +428,17 @@ class ViewAssignmentDataEntry extends Page implements HasTable
                 ->color('info')
                 ->icon('heroicon-o-ticket')
                 ->modalWidth('4xl')
+                ->before(function () {
+                    \Illuminate\Support\Facades\Log::info('🔵 MODAL OPENED: Generate Receipt', [
+                        'action_name' => 'generate_receipt',
+                        'timestamp' => now()->toDateTimeString(),
+                        'user_id' => auth()->id(),
+                        'assignment_id' => $this->dataEntryAssignment?->id,
+                    ]);
+                })
                 ->form($this->getReceiptFormSchema())
                 ->action(function (array $data): void {
+                    \Illuminate\Support\Facades\Log::info('🔵 FORM SUBMITTED: Generate Receipt', ['data' => $data]);
                     // Validate that either route_id or long_route_id is selected
                     if (empty($data['route_id']) && empty($data['long_route_id'])) {
                         \Filament\Notifications\Notification::make()
@@ -448,6 +457,14 @@ class ViewAssignmentDataEntry extends Page implements HasTable
                 ->label('View Dispatch Report')
                 ->color('success')
                 ->icon('heroicon-o-document-chart-bar')
+                ->before(function () {
+                    \Illuminate\Support\Facades\Log::info('🟢 MODAL OPENED: View Dispatch Report', [
+                        'action_name' => 'view_dispatch_report',
+                        'timestamp' => now()->toDateTimeString(),
+                        'user_id' => auth()->id(),
+                        'assignment_id' => $this->dataEntryAssignment?->id,
+                    ]);
+                })
                 ->modalContent(fn () => view('filament.resources.data-entry-assignment-resource.pages.dispatch-report-modal', [
                     'dispatchLogs' => $this->dispatchLogs,
                     'assignment' => $this->dataEntryAssignment,
@@ -483,6 +500,15 @@ class ViewAssignmentDataEntry extends Page implements HasTable
                 ->color('warning')
                 ->icon('heroicon-o-truck')
                 ->modalWidth('2xl')
+                ->before(function () {
+                    \Illuminate\Support\Facades\Log::info('🟡 MODAL OPENED: Dispatch Device(s)', [
+                        'action_name' => 'dp_form',
+                        'timestamp' => now()->toDateTimeString(),
+                        'user_id' => auth()->id(),
+                        'selected_devices' => $this->selectedDevices ?? [],
+                        'assignment_id' => $this->dataEntryAssignment?->id,
+                    ]);
+                })
                 ->form([
                     Forms\Components\DatePicker::make('date')
                         ->label('Dispatch Date')
@@ -801,6 +827,14 @@ class ViewAssignmentDataEntry extends Page implements HasTable
                 ->icon('heroicon-o-list-bullet')
                 ->modalHeading('Generated Receipts')
                 ->modalWidth('7xl')
+                ->before(function () {
+                    \Illuminate\Support\Facades\Log::info('🟣 MODAL OPENED: View Generated Receipts', [
+                        'action_name' => 'view_generated_receipts',
+                        'timestamp' => now()->toDateTimeString(),
+                        'user_id' => auth()->id(),
+                        'assignment_id' => $this->dataEntryAssignment?->id,
+                    ]);
+                })
                 ->modalContent(fn () => view('filament.resources.data-entry-assignment.pages.receipts-table-modal', [
                     'receiptFilters' => $this->receiptFilters,
                     'filteredReceipts' => $this->filteredReceipts,
