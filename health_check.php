@@ -158,21 +158,32 @@ echo str_repeat("-", 90) . "\n";
 // Parse .env file properly (handles special chars and quotes)
 function parseEnvFile($filePath) {
     $env = [];
-    $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if (!file_exists($filePath)) return $env;
+    
+    $content = file_get_contents($filePath);
+    
+    // Split by newlines
+    $lines = preg_split('/\r\n|\r|\n/', $content);
+    
     foreach ($lines as $line) {
-        // Skip comments
-        if (strpos(trim($line), '#') === 0) continue;
+        // Trim and skip empty lines and comments
+        $line = trim($line);
+        if (empty($line) || strpos($line, '#') === 0) continue;
         
         // Parse KEY=VALUE
         if (strpos($line, '=') === false) continue;
         
-        list($key, $value) = explode('=', $line, 2);
+        $pos = strpos($line, '=');
+        $key = substr($line, 0, $pos);
+        $value = substr($line, $pos + 1);
+        
         $key = trim($key);
         $value = trim($value);
         
-        // Remove quotes if present
-        if (preg_match('/^(["\'])(.*)\\1$/m', $value, $m)) {
-            $value = $m[2];
+        // Remove surrounding quotes if present
+        if ((substr($value, 0, 1) === '"' && substr($value, -1) === '"') ||
+            (substr($value, 0, 1) === "'" && substr($value, -1) === "'")) {
+            $value = substr($value, 1, -1);
         }
         
         $env[$key] = $value;
@@ -183,6 +194,14 @@ function parseEnvFile($filePath) {
 $env = parseEnvFile(BASE_PATH . '/.env');
 $dbHost = $env['DB_HOST'] ?? '127.0.0.1';
 $dbUser = $env['DB_USERNAME'] ?? '';
+$dbPass = $env['DB_PASSWORD'] ?? '';
+$dbName = $env['DB_DATABASE'] ?? '';
+
+// Debug: Show what we parsed (for troubleshooting)
+if (empty($dbUser) || empty($dbPass)) {
+    echo "⚠️  WARNING: Database credentials may not be parsed correctly from .env\n";
+    echo "  Parsed DB_USER: '$dbUser', DB_PASS: " . (empty($dbPass) ? "(empty)" : "***") . "\n";
+}
 $dbPass = $env['DB_PASSWORD'] ?? '';
 $dbName = $env['DB_DATABASE'] ?? '';
 
