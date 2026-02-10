@@ -131,21 +131,20 @@ if (!file_exists($indexPath)) {
     $critical_failed++;
 } else {
     echo "✅ public/index.php exists\n";
-    $content = file_get_contents($indexPath, false, null, 0, 800);
+    $content = file_get_contents($indexPath, false, null, 0, 1000);
     
     $isLaravel = strpos($content, 'bootstrap/app') !== false;
     $isWordPress = strpos($content, 'wp-blog-header') !== false;
-    $hasRequire = preg_match('/require|include/', $content) !== 0;
     
     if ($isWordPress) {
         echo "❌ ERROR: public/index.php is a WORDPRESS file (not Laravel)!\n";
         $checks[] = ['name' => 'Entry point is Laravel', 'status' => false, 'critical' => true];
         $critical_failed++;
-    } elseif ($isLaravel && $hasRequire) {
+    } elseif ($isLaravel) {
         echo "✅ public/index.php is correct Laravel front controller\n";
         $checks[] = ['name' => 'Entry point is Laravel', 'status' => true, 'critical' => true];
     } else {
-        echo "⚠️  public/index.php content unclear (may not be Laravel)\n";
+        echo "⚠️  public/index.php may not be correct Laravel entry point\n";
         $checks[] = ['name' => 'Entry point is Laravel', 'status' => false, 'critical' => false];
     }
 }
@@ -156,7 +155,32 @@ echo "\n";
 echo "[6/15] CHECKING DATABASE CONNECTION\n";
 echo str_repeat("-", 90) . "\n";
 
-$env = parse_ini_file(BASE_PATH . '/.env');
+// Parse .env file properly (handles special chars and quotes)
+function parseEnvFile($filePath) {
+    $env = [];
+    $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        // Skip comments
+        if (strpos(trim($line), '#') === 0) continue;
+        
+        // Parse KEY=VALUE
+        if (strpos($line, '=') === false) continue;
+        
+        list($key, $value) = explode('=', $line, 2);
+        $key = trim($key);
+        $value = trim($value);
+        
+        // Remove quotes if present
+        if (preg_match('/^(["\'])(.*)\\1$/m', $value, $m)) {
+            $value = $m[2];
+        }
+        
+        $env[$key] = $value;
+    }
+    return $env;
+}
+
+$env = parseEnvFile(BASE_PATH . '/.env');
 $dbHost = $env['DB_HOST'] ?? '127.0.0.1';
 $dbUser = $env['DB_USERNAME'] ?? '';
 $dbPass = $env['DB_PASSWORD'] ?? '';
@@ -237,7 +261,8 @@ if (file_exists($manifestPath)) {
         $count = 0;
         foreach ($manifest as $src => $dst) {
             if ($count++ < 5) {
-                echo "    • $src → $dst\n";
+                $dstDisplay = is_array($dst) ? json_encode($dst) : $dst;
+                echo "    • $src → $dstDisplay\n";
             }
         }
         if (count($manifest) > 5) {
