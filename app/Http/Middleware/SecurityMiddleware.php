@@ -294,9 +294,16 @@ class SecurityMiddleware
      */
     private function rateLimit(Request $request): void
     {
+        // Get rate limit from config or use defaults
+        $maxAttempts = config('security.rate_limit.max_attempts', 300); // requests
+        $decayMinutes = config('security.rate_limit.decay_minutes', 1); // minute
+        
+        // Exclude admin users from rate limiting
+        if (auth()->check() && auth()->user()->hasRole('super_admin')) {
+            return;
+        }
+        
         $key = 'rate_limit:' . $request->ip();
-        $maxAttempts = 100; // requests
-        $decayMinutes = 1; // minute
         
         if (cache()->has($key)) {
             $attempts = cache()->get($key);
@@ -305,9 +312,10 @@ class SecurityMiddleware
                 Log::warning('Rate limit exceeded', [
                     'ip' => $request->ip(),
                     'attempts' => $attempts,
+                    'path' => $request->path(),
                 ]);
                 
-                abort(429, 'Too Many Requests');
+                abort(429, 'Too Many Requests - Please wait a moment');
             }
             
             cache()->put($key, $attempts + 1, now()->addMinutes($decayMinutes));
