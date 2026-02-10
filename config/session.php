@@ -37,6 +37,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Session Inactivity Timeout
+    |--------------------------------------------------------------------------
+    |
+    | This option specifies the number of minutes of inactivity before the
+    | user is automatically logged out. Set to null to disable.
+    | Default: 30 minutes
+    |
+    */
+
+    'inactivity_timeout' => env('SESSION_INACTIVITY_TIMEOUT', 30),
+
+    /*
+    |--------------------------------------------------------------------------
     | Session Encryption
     |--------------------------------------------------------------------------
     |
