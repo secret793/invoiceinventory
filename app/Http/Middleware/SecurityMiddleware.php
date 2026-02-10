@@ -294,14 +294,14 @@ class SecurityMiddleware
      */
     private function rateLimit(Request $request): void
     {
-        // Get rate limit from config or use defaults
-        $maxAttempts = config('security.rate_limit.max_attempts', 300); // requests
-        $decayMinutes = config('security.rate_limit.decay_minutes', 1); // minute
-        
-        // Exclude admin users from rate limiting
-        if (auth()->check() && auth()->user()->hasRole('super_admin')) {
+        // Skip rate limiting for authenticated users
+        if (auth()->check()) {
             return;
         }
+        
+        // Get rate limit from config or use defaults
+        $maxAttempts = config('security.rate_limit.max_attempts', 1000); // requests
+        $decayMinutes = config('security.rate_limit.decay_minutes', 1); // minute
         
         $key = 'rate_limit:' . $request->ip();
         
