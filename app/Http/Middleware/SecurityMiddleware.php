@@ -14,6 +14,11 @@ class SecurityMiddleware
      */
     public function handle(Request $request, Closure $next): Response
     {
+        // Skip security checks in local development
+        if (app()->environment('local')) {
+            return $next($request);
+        }
+        
         // 1. Block suspicious request patterns
         $this->blockSuspiciousRequests($request);
         
