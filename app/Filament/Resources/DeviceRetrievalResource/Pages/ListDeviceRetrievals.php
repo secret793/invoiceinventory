@@ -605,10 +605,15 @@ class ListDeviceRetrievals extends ListRecords
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('date')
+                Tables\Columns\TextColumn::make('affixing_date')
                     ->label('Date of Affixing')
                     ->dateTime()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('date')
+                    ->label('Dispatch Date')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('device.device_id')
                     ->label('Device ID')
                     ->searchable(),
@@ -1080,7 +1085,7 @@ class ListDeviceRetrievals extends ListRecords
                         ),
                 ])
             ])
-            ->defaultSort('date', 'desc')
+            ->defaultSort('affixing_date', 'desc')
             ->poll('10s')
             ->selectable()
             ->bulkActions([

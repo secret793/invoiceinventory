@@ -61,7 +61,7 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
-            ->darkModebrandLogo('<img src="' . asset('images/etracking logo.jpg') . '" style="max-width:300px;max-height:120px;display:block;margin:auto;" alt="Logo">')
+            ->darkModeBrandLogo(asset('images/etracking logo.jpg'))
             ->login()
             ->brandName('E-Tracking Inventory System')
            // ->brandLogo(asset('images/etracking logo2.jpg'))

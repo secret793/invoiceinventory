@@ -89,10 +89,15 @@ class DeviceRetrievalResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('date')
-                    ->label('Date')
+                Tables\Columns\TextColumn::make('affixing_date')
+                    ->label('Date of Affixing')
                     ->dateTime()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('date')
+                    ->label('Dispatch Date')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('device.device_id')
                     ->label('Device ID')
                     ->searchable(),
