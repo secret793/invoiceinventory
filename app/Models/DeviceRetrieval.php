@@ -183,7 +183,8 @@ class DeviceRetrieval extends Model
 
     public function allocationPoint(): BelongsTo
     {
-        return $this->belongsTo(AllocationPoint::class, 'allocation_point_id');
+        return $this->belongsTo(AllocationPoint::class, 'allocation_point_id')
+            ->withoutGlobalScope('user-allocation-points');
     }
 
     /**

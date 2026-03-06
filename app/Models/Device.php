@@ -124,7 +124,8 @@ class Device extends Model
 
     public function allocationPoint()
     {
-        return $this->belongsTo(AllocationPoint::class);
+        return $this->belongsTo(AllocationPoint::class)
+            ->withoutGlobalScope('user-allocation-points');
     }
 
     public function retrievals()
