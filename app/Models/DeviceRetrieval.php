@@ -97,10 +97,12 @@ class DeviceRetrieval extends Model
         if ($user->hasRole('Finance Officer')) {
             $builder->where('overstay_days', '>=', 1);
             return;
-        }            // For Retrieval Officer, filter by destination permissions
-            if ($user->hasRole('Retrieval Officer')) {
+        }
+
+            // For Retrieval Officer and Read Only Tracker Officer, filter by destination permissions
+            if ($user->hasRole(['Retrieval Officer', 'Read Only Tracker Officer'])) {
                 // Get all permissions that start with 'view_destination_'
-                $permissions = $user->permissions->pluck('name')->toArray();
+                $permissions = $user->getAllPermissions()->pluck('name')->toArray();
 
                 $destinationPermissions = array_filter($permissions, function ($permission) {
                     return Str::startsWith($permission, 'view_destination_');

@@ -17,6 +17,11 @@ class ListConfirmedAffixeds extends ListRecords
 {
     protected static string $resource = ConfirmedAffixedResource::class;
 
+    protected function isReadOnlyTrackerOfficer(): bool
+    {
+        return auth()->user()?->hasRole('Read Only Tracker Officer') ?? false;
+    }
+
     // Filter properties for the modal
     public $filters = [
         'search' => null,
@@ -40,10 +45,10 @@ class ListConfirmedAffixeds extends ListRecords
         // Apply allocation point permission filtering (same logic as ConfirmedAffixed model)
         $user = auth()->user();
         if (!$user->hasRole(['Super Admin', 'Warehouse Manager'])) {
-            // For Retrieval Officer and Affixing Officer, filter by allocation point permissions
-            if ($user->hasRole(['Retrieval Officer', 'Affixing Officer'])) {
+            // For Retrieval Officer, Affixing Officer and Read Only Tracker Officer, filter by allocation point permissions
+            if ($user->hasRole(['Retrieval Officer', 'Affixing Officer', 'Read Only Tracker Officer'])) {
                 // Get all permissions starting with 'view_allocationpoint_'
-                $permissions = $user->permissions->pluck('name')->toArray();
+                $permissions = $user->getAllPermissions()->pluck('name')->toArray();
                 $allocationPointPermissions = array_filter($permissions, function ($permission) {
                     return \Illuminate\Support\Str::startsWith($permission, 'view_allocationpoint_');
                 });
@@ -261,6 +266,10 @@ class ListConfirmedAffixeds extends ListRecords
 
     protected function getTableBulkActions(): array
     {
+        if ($this->isReadOnlyTrackerOfficer()) {
+            return [];
+        }
+
         return [
             BulkAction::make('bulkPickForAffixing')
                 ->label('Pick Selected for Affixing')

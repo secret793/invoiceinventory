@@ -92,6 +92,11 @@ class ListDeviceRetrievals extends ListRecords
         'report2Filters' => ['except' => '', 'as' => 'filters'],
     ];
 
+    protected function isReadOnlyTrackerOfficer(): bool
+    {
+        return auth()->user()?->hasRole('Read Only Tracker Officer') ?? false;
+    }
+
     // Add cache key generator
     protected function getCacheKey(): string
     {
@@ -446,42 +451,69 @@ class ListDeviceRetrievals extends ListRecords
 
     protected function getHeaderActions(): array
     {
+        $deviceRetrievalReportAction = Actions\Action::make('deviceRetrievalReport')
+            ->label('Device Retrieval Report')
+            ->icon('heroicon-o-document-chart-bar')
+            ->color('info')
+            ->modalHeading('Device Retrieval Report')
+            ->modalWidth('7xl')
+            ->modalContent(fn () => view('filament.resources.device-retrieval-resource.pages.device-retrieval-report'))
+            ->modalSubmitActionLabel('Export to Excel')
+            ->modalSubmitAction(function ($action) {
+                $params = [
+                    'search' => $this->filters['search'] ?? null,
+                    'device_id' => $this->filters['device_id'] ?? null,
+                    'boe' => $this->filters['boe'] ?? null,
+                    'vehicle_number' => $this->filters['vehicle_number'] ?? null,
+                    'start_date' => $this->filters['start_date'] ?? null,
+                    'end_date' => $this->filters['end_date'] ?? null,
+                    'start_time' => $this->filters['start_time'] ?? null,
+                    'end_time' => $this->filters['end_time'] ?? null,
+                    'retrieval_status' => $this->filters['retrieval_status'] ?? null,
+                    'action_type' => $this->filters['action_type'] ?? null,
+                    'allocation_point_id' => $this->filters['allocation_point_id'] ?? null,
+                    'sort_by' => $this->filters['sort_by'] ?? null,
+                    'sort_direction' => $this->filters['sort_direction'] ?? null,
+                ];
+
+                $filteredParams = array_filter($params, function ($value) {
+                    return $value !== null && $value !== '';
+                });
+
+                return $action->url(route('export.device-retrieval-report', $filteredParams));
+            });
+
+        $viewOverstayDevicesAction = Actions\Action::make('viewOverstayDevices')
+            ->label('View Overstay Devices')
+            ->icon('heroicon-o-exclamation-circle')
+            ->color('danger')
+            ->modalHeading('Overstay Devices')
+            ->modalWidth('7xl')
+            ->modalContent(fn () => view('filament.resources.device-retrieval-resource.pages.overstay-devices-table-modal', [
+                'overstayFilters' => $this->overstayFilters,
+                'tempOverstayFilters' => $this->tempOverstayFilters,
+                'filteredOverstayDevices' => $this->filteredOverstayDevices,
+                'overstayStatistics' => $this->overstayStatistics,
+                'availableDestinations' => $this->getAvailableDestinationsProperty(),
+                'availableAllocationPoints' => $this->getAvailableAllocationPointsProperty(),
+                'destinationSearch' => $this->destinationSearch,
+                'allocationPointSearch' => $this->allocationPointSearch,
+                'filteredDestinations' => $this->filteredDestinations,
+                'filteredAllocationPoints' => $this->filteredAllocationPoints,
+                'hasActiveOverstayFilters' => $this->hasActiveOverstayFilters(),
+            ]))
+            ->visible(fn () => auth()->check());
+
+        if ($this->isReadOnlyTrackerOfficer()) {
+            return [
+                $deviceRetrievalReportAction,
+                $viewOverstayDevicesAction,
+            ];
+        }
+
         return [
             Actions\CreateAction::make(),
-            // Device Retrieval Report Action
-            Actions\Action::make('deviceRetrievalReport')
-                ->label('Device Retrieval Report')
-                ->icon('heroicon-o-document-chart-bar')
-                ->color('info')
-                ->modalHeading('Device Retrieval Report')
-                ->modalWidth('7xl')
-                ->modalContent(fn () => view('filament.resources.device-retrieval-resource.pages.device-retrieval-report'))
-                ->modalSubmitActionLabel('Export to Excel')
-                ->modalSubmitAction(function ($action) {
-                    $params = [
-                        'search' => $this->filters['search'] ?? null,
-                        'device_id' => $this->filters['device_id'] ?? null,
-                        'boe' => $this->filters['boe'] ?? null,
-                        'vehicle_number' => $this->filters['vehicle_number'] ?? null,
-                        'start_date' => $this->filters['start_date'] ?? null,
-                        'end_date' => $this->filters['end_date'] ?? null,
-                        'start_time' => $this->filters['start_time'] ?? null,
-                        'end_time' => $this->filters['end_time'] ?? null,
-
-                        'retrieval_status' => $this->filters['retrieval_status'] ?? null,
-                        'action_type' => $this->filters['action_type'] ?? null,
-                        'allocation_point_id' => $this->filters['allocation_point_id'] ?? null,
-                        'sort_by' => $this->filters['sort_by'] ?? null,
-                        'sort_direction' => $this->filters['sort_direction'] ?? null,
-                    ];
-
-                    // Remove null values from the params array
-                    $filteredParams = array_filter($params, function($value) {
-                        return $value !== null && $value !== '';
-                    });
-
-                    return $action->url(route('export.device-retrieval-report', $filteredParams));
-                }),
+            $deviceRetrievalReportAction,
             
             // Device Retrieval Report #2 Action
             Actions\Action::make('deviceRetrievalReport2')
@@ -525,27 +557,7 @@ class ListDeviceRetrievals extends ListRecords
                     return $action->url(route('export.device-retrieval-report-2', $filteredParams));
                 }),
 
-            // View Overstay Devices Action
-            Actions\Action::make('viewOverstayDevices')
-                ->label('View Overstay Devices')
-                ->icon('heroicon-o-exclamation-circle')
-                ->color('danger')
-                ->modalHeading('Overstay Devices')
-                ->modalWidth('7xl')
-                ->modalContent(fn () => view('filament.resources.device-retrieval-resource.pages.overstay-devices-table-modal', [
-                    'overstayFilters' => $this->overstayFilters,
-                    'tempOverstayFilters' => $this->tempOverstayFilters,
-                    'filteredOverstayDevices' => $this->filteredOverstayDevices,
-                    'overstayStatistics' => $this->overstayStatistics,
-                    'availableDestinations' => $this->getAvailableDestinationsProperty(),
-                    'availableAllocationPoints' => $this->getAvailableAllocationPointsProperty(),
-                    'destinationSearch' => $this->destinationSearch,
-                    'allocationPointSearch' => $this->allocationPointSearch,
-                    'filteredDestinations' => $this->filteredDestinations,
-                    'filteredAllocationPoints' => $this->filteredAllocationPoints,
-                    'hasActiveOverstayFilters' => $this->hasActiveOverstayFilters(),
-                ]))
-                ->visible(fn () => auth()->check()),  // All logged-in users can see this button
+            $viewOverstayDevicesAction,
             
             // Manual Overstay Days Update action - for Super Admin only
             Actions\Action::make('manualOverstayDaysUpdate')
@@ -707,7 +719,7 @@ class ListDeviceRetrievals extends ListRecords
                             );
                     }),
             ])
-            ->actions([
+            ->actions($this->isReadOnlyTrackerOfficer() ? [] : [
                 Tables\Actions\ActionGroup::make([
                     // Return to Outstation action
                     Tables\Actions\Action::make('returnToOutstation')
@@ -1087,8 +1099,8 @@ class ListDeviceRetrievals extends ListRecords
             ])
             ->defaultSort('affixing_date', 'desc')
             ->poll('10s')
-            ->selectable()
-            ->bulkActions([
+            ->selectable(!$this->isReadOnlyTrackerOfficer())
+            ->bulkActions($this->isReadOnlyTrackerOfficer() ? [] : [
                 \App\Filament\Actions\BulkUpdateOverstayAction::make(),
             ]);
     }

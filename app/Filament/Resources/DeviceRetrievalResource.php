@@ -270,9 +270,9 @@ class DeviceRetrievalResource extends Resource
         }
 
         // For Retrieval Officer, filter by destination permissions
-        if ($user?->hasRole('Retrieval Officer')) {
+        if ($user?->hasRole(['Retrieval Officer', 'Read Only Tracker Officer'])) {
             // Get all permissions that start with 'view_destination_'
-            $destinationPermissions = $user->permissions
+            $destinationPermissions = $user->getAllPermissions()
                 ->filter(fn ($permission) => str_starts_with($permission->name, 'view_destination_'))
                 ->map(fn ($permission) => Str::after($permission->name, 'view_destination_'))
                 ->toArray();
@@ -329,7 +329,8 @@ class DeviceRetrievalResource extends Resource
             'Warehouse Manager',
             'Retrieval Officer',
             'Affixing Officer',
-            'Finance Officer'
+            'Finance Officer',
+            'Read Only Tracker Officer',
         ]);
     }
 
@@ -378,9 +379,9 @@ class DeviceRetrievalResource extends Resource
         }
 
         // For Retrieval Officer, filter by destination permissions
-        if ($user?->hasRole('Retrieval Officer')) {
+        if ($user?->hasRole(['Retrieval Officer', 'Read Only Tracker Officer'])) {
             // Get all permissions that start with 'view_destination_'
-            $destinationPermissions = $user->permissions
+            $destinationPermissions = $user->getAllPermissions()
                 ->filter(fn ($permission) => str_starts_with($permission->name, 'view_destination_'))
                 ->map(fn ($permission) => Str::after($permission->name, 'view_destination_'))
                 ->toArray();

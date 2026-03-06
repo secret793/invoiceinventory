@@ -28,6 +28,11 @@ class ListDevices extends ListRecords
 {
     protected static string $resource = DeviceResource::class;
 
+    protected function isReadOnlyTrackerOfficer(): bool
+    {
+        return auth()->user()?->hasRole('Read Only Tracker Officer') ?? false;
+    }
+
     protected function getHeaderWidgets(): array
     {
         return [
@@ -38,6 +43,10 @@ class ListDevices extends ListRecords
 
     protected function getHeaderActions(): array
     {
+        if ($this->isReadOnlyTrackerOfficer()) {
+            return [];
+        }
+
         return [
             Actions\CreateAction::make(),
             Actions\Action::make('importProducts')
@@ -178,6 +187,10 @@ class ListDevices extends ListRecords
 
     protected function getTableActions(): array
     {
+        if ($this->isReadOnlyTrackerOfficer()) {
+            return [];
+        }
+
         return [
             EditAction::make(),
             Tables\Actions\Action::make('changeStatus')

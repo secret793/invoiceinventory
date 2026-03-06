@@ -34,6 +34,11 @@ class DeviceResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
 
+    protected static function isReadOnlyTrackerOfficer(): bool
+    {
+        return auth()->user()?->hasRole('Read Only Tracker Officer') ?? false;
+    }
+
     public static function form(Form $form): Form
     {
         return $form
@@ -211,11 +216,11 @@ class DeviceResource extends Resource
                         return $indicators;
                     }),
             ])
-            ->actions([
+            ->actions(static::isReadOnlyTrackerOfficer() ? [] : [
                 Tables\Actions\EditAction::make()->icon('heroicon-o-pencil'),
                 Tables\Actions\DeleteAction::make()->icon('heroicon-o-trash'),
             ])
-            ->bulkActions([
+            ->bulkActions(static::isReadOnlyTrackerOfficer() ? [] : [
                 // Bulk action for changing device status
                 BulkAction::make('changeStatus')
                     ->label('Change Device Status')
@@ -349,8 +354,8 @@ class DeviceResource extends Resource
                                 ->success()
                                 ->send();
                         });
-                    }),
-            ]);
+                        }),
+                    ]);
     }
 
     public static function getPages(): array

@@ -29,6 +29,11 @@ class ConfirmedAffixedResource extends Resource
     protected static ?string $navigationLabel = 'Confirmed Affixed';
     protected static ?string $navigationGroup = 'Device Management';
 
+    protected static function isReadOnlyTrackerOfficer(): bool
+    {
+        return auth()->user()?->hasRole('Read Only Tracker Officer') ?? false;
+    }
+
     public static function form(Form $form): Form
     {
         return $form
@@ -123,7 +128,7 @@ class ConfirmedAffixedResource extends Resource
                         'COMPLETED' => 'Completed',
                     ])
             ])
-            ->actions([
+            ->actions(static::isReadOnlyTrackerOfficer() ? [] : [
                 Tables\Actions\Action::make('pickForAffixing')
                     ->label('Pick for Affixing')
                     ->icon('heroicon-o-check-circle')
@@ -429,7 +434,7 @@ class ConfirmedAffixedResource extends Resource
                     })
                     ->visible(fn (ConfirmedAffixed $record): bool => $record->status === 'PENDING'),
             ])
-            ->bulkActions([
+            ->bulkActions(static::isReadOnlyTrackerOfficer() ? [] : [
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
@@ -467,7 +472,8 @@ class ConfirmedAffixedResource extends Resource
             'Super Admin',
             'Warehouse Manager',
             'Affixing Officer',
-            'Retrieval Officer'
+            'Retrieval Officer',
+            'Read Only Tracker Officer',
         ]);
     }
 
@@ -515,16 +521,18 @@ class ConfirmedAffixedResource extends Resource
             return $query;
         }
 
-        // For Retrieval Officer and Affixing Officer, filter by allocation point permissions
-        if ($user?->hasRole(['Retrieval Officer', 'Affixing Officer'])) {
-            Log::info('ConfirmedAffixedResource: Processing Retrieval Officer/Affixing Officer access', [
+        // For Retrieval Officer, Affixing Officer and Read Only Tracker Officer, filter by allocation point permissions
+        if ($user?->hasRole(['Retrieval Officer', 'Affixing Officer', 'Read Only Tracker Officer'])) {
+                Log::info('ConfirmedAffixedResource: Processing role-based allocation point access', [
                 'user_id' => $user->id,
                 'user_roles' => $user->roles->pluck('name')->toArray()
             ]);
 
             try {
+                $allPermissions = $user->getAllPermissions();
+
                 // Get all permissions that start with 'view_allocationpoint_'
-                $allocationPointPermissions = $user->permissions
+                $allocationPointPermissions = $allPermissions
                     ->filter(fn ($permission) => str_starts_with($permission->name, 'view_allocationpoint_'))
                     ->map(fn ($permission) => str_replace('view_allocationpoint_', '', $permission->name))
                     ->unique()
@@ -539,7 +547,7 @@ class ConfirmedAffixedResource extends Resource
                 if (empty($allocationPointPermissions)) {
                     Log::warning('ConfirmedAffixedResource: User has no allocation point permissions', [
                         'user_id' => $user->id,
-                        'all_permissions' => $user->permissions->pluck('name')->toArray()
+                        'all_permissions' => $allPermissions->pluck('name')->toArray()
                     ]);
                     return $query->where('id', 0);
                 }
@@ -624,15 +632,17 @@ class ConfirmedAffixedResource extends Resource
             'user_roles' => $user?->roles->pluck('name')->toArray() ?? []
         ]);
 
-        // For Retrieval Officer and Affixing Officer, filter by destination permissions
-        if ($user?->hasRole(['Retrieval Officer', 'Affixing Officer'])) {
-            Log::info('ConfirmedAffixedResource: getTableQuery processing Retrieval Officer/Affixing Officer access', [
+        // For Retrieval Officer, Affixing Officer and Read Only Tracker Officer, filter by destination permissions
+        if ($user?->hasRole(['Retrieval Officer', 'Affixing Officer', 'Read Only Tracker Officer'])) {
+            Log::info('ConfirmedAffixedResource: getTableQuery processing role-based destination access', [
                 'user_id' => $user->id,
                 'user_roles' => $user->roles->pluck('name')->toArray()
             ]);
 
+            $allPermissions = $user->getAllPermissions();
+
             // Get all permissions that start with 'view_destination_'
-            $destinationPermissions = $user->permissions
+            $destinationPermissions = $allPermissions
                 ->filter(fn ($permission) => str_starts_with($permission->name, 'view_destination_'))
                 ->map(fn ($permission) => Str::after($permission->name, 'view_destination_'))
                 ->toArray();
@@ -640,7 +650,7 @@ class ConfirmedAffixedResource extends Resource
             Log::info('ConfirmedAffixedResource: getTableQuery destination permissions extracted', [
                 'user_id' => $user->id,
                 'destination_permissions' => $destinationPermissions,
-                'all_permissions' => $user->permissions->pluck('name')->toArray()
+                'all_permissions' => $allPermissions->pluck('name')->toArray()
             ]);
 
             // If user has destination permissions, filter by those
@@ -684,7 +694,7 @@ class ConfirmedAffixedResource extends Resource
                 Log::warning('ConfirmedAffixedResource: getTableQuery User has no destination permissions, showing no records', [
                     'user_id' => $user->id,
                     'user_roles' => $user->roles->pluck('name')->toArray(),
-                    'all_permissions' => $user->permissions->pluck('name')->toArray()
+                    'all_permissions' => $allPermissions->pluck('name')->toArray()
                 ]);
 
                 // If no destination permissions, show nothing

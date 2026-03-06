@@ -77,15 +77,15 @@ class ConfirmedAffixed extends Model
                 return;
             }
 
-            // For Retrieval Officer and Affixing Officer, filter by allocation point permissions
-            if ($user->hasRole(['Retrieval Officer', 'Affixing Officer'])) {
+            // For Retrieval Officer, Affixing Officer and Read Only Tracker Officer, filter by allocation point permissions
+            if ($user->hasRole(['Retrieval Officer', 'Affixing Officer', 'Read Only Tracker Officer'])) {
                 Log::info('ConfirmedAffixed Global Scope: Processing Retrieval Officer/Affixing Officer access', [
                     'user_id' => $user->id,
                     'user_roles' => $user->roles->pluck('name')->toArray()
                 ]);
 
-                // Get all permissions starting with 'view_allocationpoint_'
-                $permissions = $user->permissions->pluck('name')->toArray();
+                // Get all permissions (direct + via roles) starting with 'view_allocationpoint_'
+                $permissions = $user->getAllPermissions()->pluck('name')->toArray();
                 $allocationPointPermissions = array_filter($permissions, function ($permission) {
                     return Str::startsWith($permission, 'view_allocationpoint_');
                 });

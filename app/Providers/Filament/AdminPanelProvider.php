@@ -120,6 +120,7 @@ class AdminPanelProvider extends PanelProvider
                     $isAffixingOfficer = $user->hasRole('Affixing Officer');
                     $isRetrievalOfficer = $user->hasRole('Retrieval Officer');
                     $isFinanceOfficer = $user->hasRole('Finance Officer');
+                    $isReadOnlyTrackerOfficer = $user->hasRole('Read Only Tracker Officer');
                 } catch (\Exception $e) {
                     \Log::error('AdminPanelProvider: Error checking roles', [
                         'user_id' => $user->id,
@@ -128,13 +129,32 @@ class AdminPanelProvider extends PanelProvider
                     return $builder;
                 }
 
-                // Base navigation for all users
-                $builder->item(
-                    NavigationItem::make('Dashboard')
-                        ->icon('heroicon-o-home')
-                        ->isActiveWhen(fn (): bool => request()->routeIs('filament.admin.pages.dashboard'))
-                        ->url(fn (): string => Pages\Dashboard::getUrl())
-                );
+                // Base navigation for all users except the dedicated read-only tracker role.
+                if (!$isReadOnlyTrackerOfficer) {
+                    $builder->item(
+                        NavigationItem::make('Dashboard')
+                            ->icon('heroicon-o-home')
+                            ->isActiveWhen(fn (): bool => request()->routeIs('filament.admin.pages.dashboard'))
+                            ->url(fn (): string => Pages\Dashboard::getUrl())
+                    );
+                }
+
+                // Read-only tracker officer navigation (exactly three menu items)
+                if ($isReadOnlyTrackerOfficer && !$isSuperAdmin && !$isWarehouseManager) {
+                    $builder->group('Tracking', [
+                        NavigationItem::make('Device Tracker')
+                            ->icon('heroicon-o-device-phone-mobile')
+                            ->url(DeviceResource::getUrl()),
+                        NavigationItem::make('Device Retrieval')
+                            ->icon('heroicon-o-arrow-uturn-left')
+                            ->url(DeviceRetrievalResource::getUrl()),
+                        NavigationItem::make('ConfirmedAffix')
+                            ->icon('heroicon-o-check-circle')
+                            ->url(ConfirmedAffixedResource::getUrl()),
+                    ]);
+
+                    return $builder;
+                }
 
                 // Finance Officer navigation
                 if ($isFinanceOfficer) {
