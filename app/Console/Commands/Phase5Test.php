@@ -1,7 +1,7 @@
 <?php
 // Phase 5 Test Suite - Receipt Integration with Dispatch & Finance
 
-namespace App;
+namespace App\Console\Commands;
 
 use App\Models\Receipt;
 use App\Models\Route;
@@ -13,7 +13,7 @@ use App\Models\DispatchFinanceRecord;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
-class Phase5Tester
+class Phase5Test
 {
     public $testsPassed = 0;
     public $testsFailed = 0;
