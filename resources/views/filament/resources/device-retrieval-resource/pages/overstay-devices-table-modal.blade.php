@@ -1,9 +1,52 @@
 <!-- Overstay Devices Modal Table View -->
+@php
+    $exportUrl = route('export.overstay-devices', array_filter($overstayFilters, fn($v) => $v !== null && $v !== ''));
+@endphp
 <div class="p-6">
     <!-- Filter Panel -->
     <div class="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-        <h3 class="text-sm font-semibold text-gray-900 mb-4">Filters</h3>
-        
+        <!-- Filter Header with Action Buttons -->
+        <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; margin-bottom:16px;">
+            <h3 style="font-size:0.875rem; font-weight:600; color:#111827; margin:0;">Filters</h3>
+            <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+                <button
+                    type="button"
+                    wire:click="applyOverstayFilters"
+                    style="display:inline-flex; align-items:center; gap:5px; padding:7px 14px; background:#1d4ed8; color:#ffffff; font-size:0.8125rem; font-weight:600; border:none; border-radius:6px; cursor:pointer; white-space:nowrap;"
+                    onmouseover="this.style.background='#1e40af'" onmouseout="this.style.background='#1d4ed8'"
+                >
+                    <svg style="width:14px;height:14px;flex-shrink:0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+                    </svg>
+                    Apply Filters
+                </button>
+                @if($hasActiveOverstayFilters)
+                    <button
+                        type="button"
+                        wire:click="resetOverstayFilters"
+                        style="display:inline-flex; align-items:center; gap:5px; padding:7px 14px; background:#e5e7eb; color:#374151; font-size:0.8125rem; font-weight:600; border:none; border-radius:6px; cursor:pointer; white-space:nowrap;"
+                        onmouseover="this.style.background='#d1d5db'" onmouseout="this.style.background='#e5e7eb'"
+                    >
+                        <svg style="width:14px;height:14px;flex-shrink:0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        Reset Filters
+                    </button>
+                @endif
+                <a
+                    href="{{ $exportUrl }}"
+                    target="_blank"
+                    style="display:inline-flex; align-items:center; gap:5px; padding:7px 14px; background:#15803d; color:#ffffff; font-size:0.8125rem; font-weight:600; border-radius:6px; text-decoration:none; white-space:nowrap;"
+                    onmouseover="this.style.background='#166534'" onmouseout="this.style.background='#15803d'"
+                >
+                    <svg style="width:14px;height:14px;flex-shrink:0;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Export Excel
+                </a>
+            </div>
+        </div>
+
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <!-- Device ID Filter -->
             <div>
@@ -226,43 +269,7 @@
             </div>
         </div>
 
-        <!-- Filter Action Buttons -->
-        <div class="flex gap-2 mt-4">
-            <button 
-                type="button"
-                wire:click="applyOverstayFilters"
-                class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition"
-            >
-                <svg class="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
-                </svg>
-                Apply Filters
-            </button>
-
-            @if($hasActiveOverstayFilters)
-                <button 
-                    type="button"
-                    wire:click="resetOverstayFilters"
-                    class="px-4 py-2 bg-gray-300 text-gray-800 text-sm font-medium rounded-md hover:bg-gray-400 transition"
-                >
-                    <svg class="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                    </svg>
-                    Reset Filters
-                </button>
-            @endif
-
-            <button 
-                type="button"
-                wire:click="exportOverstayDevices"
-                class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition ml-auto"
-            >
-                <svg class="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                </svg>
-                Export Excel
-            </button>
-        </div>
+        <!-- Filter Action Buttons removed - now at top of panel -->
     </div>
 
     <!-- Statistics Cards -->
@@ -415,52 +422,65 @@
 
     <!-- Pagination -->
     @if($filteredOverstayDevices && $filteredOverstayDevices->hasPages())
-        <div class="mt-4 flex items-center justify-between">
-            <p class="text-sm text-gray-600">
-                Showing 
-                <span class="font-medium">{{ $filteredOverstayDevices->firstItem() }}</span> 
-                to 
-                <span class="font-medium">{{ $filteredOverstayDevices->lastItem() }}</span>
-                of 
-                <span class="font-medium">{{ $filteredOverstayDevices->total() }}</span>
+        @php
+            $currentPage = $filteredOverstayDevices->currentPage();
+            $lastPage    = $filteredOverstayDevices->lastPage();
+            $pages       = collect(range(1, $lastPage))
+                ->filter(fn($p) => $p === 1 || $p === $lastPage || abs($p - $currentPage) <= 2)
+                ->values()
+                ->toArray();
+        @endphp
+        <div style="margin-top:16px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+            <p style="font-size:0.875rem; color:#4b5563; margin:0;">
+                Showing
+                <strong>{{ $filteredOverstayDevices->firstItem() }}</strong>
+                to
+                <strong>{{ $filteredOverstayDevices->lastItem() }}</strong>
+                of
+                <strong>{{ $filteredOverstayDevices->total() }}</strong>
                 results
             </p>
 
-            <div class="flex gap-2">
+            <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
+                {{-- Previous --}}
                 @if($filteredOverstayDevices->onFirstPage())
-                    <button class="px-3 py-2 text-sm text-gray-400 cursor-not-allowed" disabled>← Previous</button>
+                    <button type="button" disabled style="padding:5px 12px; font-size:0.8125rem; color:#9ca3af; cursor:not-allowed; border:1px solid #e5e7eb; border-radius:5px; background:#f9fafb;">← Prev</button>
                 @else
-                    <button 
-                        wire:click="$set('overstayFilters.page', {{ $filteredOverstayDevices->currentPage() - 1 }})"
-                        class="px-3 py-2 text-sm text-blue-600 hover:text-blue-800 font-medium"
-                    >
-                        ← Previous
-                    </button>
+                    <button
+                        type="button"
+                        wire:click="setOverstayPage({{ $currentPage - 1 }})"
+                        style="padding:5px 12px; font-size:0.8125rem; color:#1d4ed8; font-weight:600; border:1px solid #bfdbfe; border-radius:5px; background:#eff6ff; cursor:pointer;"
+                        onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'"
+                    >← Prev</button>
                 @endif
 
-                <!-- Page Numbers -->
-                @foreach($filteredOverstayDevices->getUrlRange(1, $filteredOverstayDevices->lastPage()) as $page => $url)
-                    @if($page == $filteredOverstayDevices->currentPage())
-                        <button class="px-3 py-2 text-sm bg-blue-600 text-white rounded-md font-medium">{{ $page }}</button>
+                {{-- Sliding window page numbers --}}
+                @foreach($pages as $i => $page)
+                    @if($i > 0 && $page > $pages[$i - 1] + 1)
+                        <span style="padding:0 4px; font-size:0.875rem; color:#9ca3af;">…</span>
+                    @endif
+                    @if($page === $currentPage)
+                        <button type="button" style="padding:5px 10px; font-size:0.8125rem; background:#1d4ed8; color:#ffffff; font-weight:700; border:none; border-radius:5px; min-width:32px; cursor:default;">{{ $page }}</button>
                     @else
-                        <button 
-                            wire:click="$set('overstayFilters.page', {{ $page }})"
-                            class="px-3 py-2 text-sm text-gray-600 hover:text-blue-600 font-medium"
-                        >
-                            {{ $page }}
-                        </button>
+                        <button
+                            type="button"
+                            wire:click="setOverstayPage({{ $page }})"
+                            style="padding:5px 10px; font-size:0.8125rem; color:#374151; border:1px solid #e5e7eb; border-radius:5px; background:#ffffff; min-width:32px; cursor:pointer;"
+                            onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='#ffffff'"
+                        >{{ $page }}</button>
                     @endif
                 @endforeach
 
+                {{-- Next --}}
                 @if($filteredOverstayDevices->hasMorePages())
-                    <button 
-                        wire:click="$set('overstayFilters.page', {{ $filteredOverstayDevices->currentPage() + 1 }})"
-                        class="px-3 py-2 text-sm text-blue-600 hover:text-blue-800 font-medium"
-                    >
-                        Next →
-                    </button>
+                    <button
+                        type="button"
+                        wire:click="setOverstayPage({{ $currentPage + 1 }})"
+                        style="padding:5px 12px; font-size:0.8125rem; color:#1d4ed8; font-weight:600; border:1px solid #bfdbfe; border-radius:5px; background:#eff6ff; cursor:pointer;"
+                        onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'"
+                    >Next →</button>
                 @else
-                    <button class="px-3 py-2 text-sm text-gray-400 cursor-not-allowed" disabled>Next →</button>
+                    <button type="button" disabled style="padding:5px 12px; font-size:0.8125rem; color:#9ca3af; cursor:not-allowed; border:1px solid #e5e7eb; border-radius:5px; background:#f9fafb;">Next →</button>
                 @endif
             </div>
         </div>

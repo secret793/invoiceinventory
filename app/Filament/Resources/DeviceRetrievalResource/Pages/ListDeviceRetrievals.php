@@ -80,6 +80,7 @@ class ListDeviceRetrievals extends ListRecords
     // Search properties for overstay devices
     public string $destinationSearch = '';
     public string $allocationPointSearch = '';
+    public int $overstayPage = 1;
     
     // Manual overstay days update - track selected device
     public ?int $selectedDeviceRetrievalId = null;
@@ -1401,7 +1402,7 @@ class ListDeviceRetrievals extends ListRecords
     public function getFilteredOverstayDevicesProperty()
     {
         $filterService = app(\App\Services\OverstayDeviceFilterService::class);
-        return $filterService->applyFilters($this->overstayFilters)->paginate(10);
+        return $filterService->applyFilters($this->overstayFilters)->paginate(10, ['*'], 'page', $this->overstayPage);
     }
 
     /**
@@ -1451,6 +1452,7 @@ class ListDeviceRetrievals extends ListRecords
     {
         // Copy temporary filters to active filters
         $this->overstayFilters = array_merge($this->overstayFilters, $this->tempOverstayFilters);
+        $this->overstayPage = 1;
         Cache::forget($this->getCacheKeyOverstay());
         $this->resetPage();
     }
@@ -1494,6 +1496,7 @@ class ListDeviceRetrievals extends ListRecords
 
         $this->destinationSearch = '';
         $this->allocationPointSearch = '';
+        $this->overstayPage = 1;
 
         Cache::forget($this->getCacheKeyOverstay());
         $this->resetPage();
@@ -1516,7 +1519,16 @@ class ListDeviceRetrievals extends ListRecords
             $this->overstayFilters['sort_direction'] = 'asc';
         }
 
+        $this->overstayPage = 1;
         Cache::forget($this->getCacheKeyOverstay());
+    }
+
+    /**
+     * Set the current page for overstay devices pagination
+     */
+    public function setOverstayPage(int $page): void
+    {
+        $this->overstayPage = max(1, $page);
     }
 
     /**
