@@ -1401,6 +1401,12 @@ class ListDeviceRetrievals extends ListRecords
      */
     public function getFilteredOverstayDevicesProperty()
     {
+        // Don't run the heavy query until the user explicitly applies filters.
+        // This makes the modal open instantly instead of querying all records.
+        if (!$this->hasActiveOverstayFilters()) {
+            return null;
+        }
+
         $filterService = app(\App\Services\OverstayDeviceFilterService::class);
         return $filterService->applyFilters($this->overstayFilters)->paginate(10, ['*'], 'page', $this->overstayPage);
     }
@@ -1547,13 +1553,13 @@ class ListDeviceRetrievals extends ListRecords
     public function getFilteredDestinationsProperty()
     {
         $destinations = $this->getAvailableDestinationsProperty();
-        
+
         if (!$this->destinationSearch) {
             return collect();
         }
-        
-        return collect($destinations)
-            ->filter(fn($name) => str_contains(strtolower($name), strtolower($this->destinationSearch)))
+
+        return $destinations
+            ->filter(fn($d) => str_contains(strtolower($d->name), strtolower($this->destinationSearch)))
             ->take(10);
     }
 
@@ -1563,13 +1569,13 @@ class ListDeviceRetrievals extends ListRecords
     public function getFilteredAllocationPointsProperty()
     {
         $points = $this->getAvailableAllocationPointsProperty();
-        
+
         if (!$this->allocationPointSearch) {
             return collect();
         }
-        
-        return collect($points)
-            ->filter(fn($name) => str_contains(strtolower($name), strtolower($this->allocationPointSearch)))
+
+        return $points
+            ->filter(fn($p) => str_contains(strtolower($p->name), strtolower($this->allocationPointSearch)))
             ->take(10);
     }
 

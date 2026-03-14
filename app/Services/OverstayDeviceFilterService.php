@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\AllocationPoint;
+use App\Models\Destination;
 use App\Models\Invoice;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -112,14 +114,25 @@ class OverstayDeviceFilterService
      */
     public function getStatistics(array $filters): array
     {
-        $query = $this->applyFilters($filters);
+        // Single aggregation query — 1 DB round-trip instead of 5.
+        // toBase() strips Eloquent eager-loads so only the WHERE conditions travel to the DB.
+        $row = $this->applyFilters($filters)
+            ->toBase()
+            ->selectRaw("
+                COUNT(*) as total_devices,
+                COALESCE(SUM(total_amount), 0) as total_overstay_amount,
+                COALESCE(SUM(overstay_days), 0) as total_overstay_days,
+                COALESCE(SUM(CASE WHEN status = 'PP' THEN total_amount ELSE 0 END), 0) as total_pending_payment,
+                COALESCE(AVG(overstay_days), 0) as average_overstay_days
+            ")
+            ->first();
 
         return [
-            'total_devices' => $query->count(),
-            'total_overstay_amount' => (float) $query->sum('total_amount'),
-            'total_overstay_days' => (int) $query->sum('overstay_days'),
-            'total_pending_payment' => (float) $query->where('status', 'PP')->sum('total_amount'),
-            'average_overstay_days' => round($query->avg('overstay_days'), 1),
+            'total_devices'         => (int)   ($row->total_devices          ?? 0),
+            'total_overstay_amount' => (float) ($row->total_overstay_amount  ?? 0),
+            'total_overstay_days'   => (int)   ($row->total_overstay_days    ?? 0),
+            'total_pending_payment' => (float) ($row->total_pending_payment  ?? 0),
+            'average_overstay_days' => round((float) ($row->average_overstay_days ?? 0), 1),
         ];
     }
 
@@ -152,21 +165,18 @@ class OverstayDeviceFilterService
      */
     public function getAvailableDestinations(): Collection
     {
-        return Invoice::query()
-            ->where(function (Builder $q) {
-                $q->where('overstay_days', '>', 0)
-                  ->orWhere('status', 'WAIVED');
+        // Single DB query using EXISTS subquery — no PHP-memory scanning.
+        return Destination::whereIn('id', function ($sub) {
+                $sub->select('destination_id')
+                    ->from('invoices')
+                    ->whereNotNull('destination_id')
+                    ->where(function ($q) {
+                        $q->where('overstay_days', '>', 0)
+                          ->orWhere('status', 'WAIVED');
+                    });
             })
-            ->whereNotNull('device_retrieval_id')
-            ->with('deviceRetrieval.destination')
-            ->get()
-            ->map(function ($invoice) {
-                return $invoice->deviceRetrieval?->destination;
-            })
-            ->filter()
-            ->unique('id')
-            ->sortBy('name')
-            ->pluck('name', 'id');
+            ->orderBy('name')
+            ->get();
     }
 
     /**
@@ -176,21 +186,18 @@ class OverstayDeviceFilterService
      */
     public function getAvailableAllocationPoints(): Collection
     {
-        return Invoice::query()
-            ->where(function (Builder $q) {
-                $q->where('overstay_days', '>', 0)
-                  ->orWhere('status', 'WAIVED');
+        // Single DB query using EXISTS subquery — no PHP-memory scanning.
+        return AllocationPoint::whereIn('id', function ($sub) {
+                $sub->select('allocation_point_id')
+                    ->from('invoices')
+                    ->whereNotNull('allocation_point_id')
+                    ->where(function ($q) {
+                        $q->where('overstay_days', '>', 0)
+                          ->orWhere('status', 'WAIVED');
+                    });
             })
-            ->whereNotNull('device_retrieval_id')
-            ->with('deviceRetrieval.allocationPoint')
-            ->get()
-            ->map(function ($invoice) {
-                return $invoice->deviceRetrieval?->allocationPoint;
-            })
-            ->filter()
-            ->unique('id')
-            ->sortBy('name')
-            ->pluck('name', 'id');
+            ->orderBy('name')
+            ->get();
     }
 
     /**

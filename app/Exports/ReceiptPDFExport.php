@@ -21,12 +21,13 @@ class ReceiptPDFExport
         return Pdf::loadHTML($html)
             ->setPaper('a4', 'portrait')
             ->setOption('defaultFont', 'DejaVu Sans')
-            ->setOption('isRemoteEnabled', true)
+            ->setOption('isRemoteEnabled', false)
             ->setOption('isHtml5ParserEnabled', true)
             ->setOption('margin-top', 15)
             ->setOption('margin-bottom', 15)
             ->setOption('margin-left', 15)
-            ->setOption('margin-right', 15);
+            ->setOption('margin-right', 15)
+            ->setOption('isFontSubsettingEnabled', true);
     }
 
     private function generateHTML(): string
