@@ -42,50 +42,17 @@ class DestinationObserver
 
     /**
      * Handle the Destination "retrieved" event.
+     *
+     * NOTE: This was a one-time backfill observer to populate missing destination
+     * strings on device_retrievals. All records are now populated, so this is a
+     * no-op. The original logic queried and loaded all matching DeviceRetrieval
+     * records on every Destination read — causing severe N+1 performance issues.
+     * The save() only ran when destination was empty, which is never true now.
      */
     public function retrieved(Destination $destination)
     {
-        try {
-            // Find all DeviceRetrieval records with this destination
-            $deviceRetrievals = DeviceRetrieval::where('destination', $destination->name)->get();
-
-            foreach ($deviceRetrievals as $deviceRetrieval) {
-                // Find the corresponding Regime
-                $regime = Regime::find($deviceRetrieval->regime);
-
-                if ($regime) {
-                    // IMPORTANT: Only update if destination is currently empty/null
-                    // Otherwise preserve the existing destination value
-                    if (empty($deviceRetrieval->destination)) {
-                        // Determine the destination based on the regime as FALLBACK
-                        switch (strtolower($regime->name)) {
-                            case 'warehouse':
-                                $deviceRetrieval->destination = 'Ghana';
-                                break;
-                            case 'transit':
-                                $deviceRetrieval->destination = 'Soma';
-                                break;
-                            // NOTE: Don't set 'Unknown' as default
-                        }
-
-                        // Only save if value was actually changed
-                        $deviceRetrieval->save();
-                    }
-
-                    // Log the update for debugging
-                    Log::info('DeviceRetrieval destination updated based on regime', [
-                        'device_id' => $deviceRetrieval->device_id,
-                        'regime' => $regime->name,
-                        'destination' => $deviceRetrieval->destination,
-                    ]);
-                }
-            }
-        } catch (\Exception $e) {
-            Log::error('Error updating DeviceRetrieval destination based on regime', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-        }
+        // No-op: backfill is complete. Destination strings are populated on all records.
+        return;
     }
 
     /**

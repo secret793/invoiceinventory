@@ -1401,12 +1401,6 @@ class ListDeviceRetrievals extends ListRecords
      */
     public function getFilteredOverstayDevicesProperty()
     {
-        // Don't run the heavy query until the user explicitly applies filters.
-        // This makes the modal open instantly instead of querying all records.
-        if (!$this->hasActiveOverstayFilters()) {
-            return null;
-        }
-
         $filterService = app(\App\Services\OverstayDeviceFilterService::class);
         return $filterService->applyFilters($this->overstayFilters)->paginate(10, ['*'], 'page', $this->overstayPage);
     }

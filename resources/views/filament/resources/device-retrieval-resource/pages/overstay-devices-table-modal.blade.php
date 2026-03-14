@@ -310,16 +310,6 @@
     @endif
 
     <!-- Data Table -->
-    @if($filteredOverstayDevices === null)
-        {{-- No filters applied yet — show prompt instead of querying all records --}}
-        <div style="text-align:center; padding:48px 24px; border:2px dashed #d1d5db; border-radius:8px; background:#f9fafb;">
-            <svg style="width:40px;height:40px;margin:0 auto 12px;color:#9ca3af;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
-            </svg>
-            <p style="font-size:0.9375rem;font-weight:600;color:#374151;margin:0 0 6px;">Use the filters above to search overstay devices</p>
-            <p style="font-size:0.8125rem;color:#6b7280;margin:0;">Enter at least one filter and click <strong>Apply Filters</strong> to load results.</p>
-        </div>
-    @else
     <div class="overflow-x-auto border border-gray-200 rounded-lg">
         <table class="w-full text-sm">
             <thead>
@@ -495,5 +485,4 @@
             </div>
         </div>
     @endif
-    @endif {{-- end @else (filters applied) --}}
 </div>
