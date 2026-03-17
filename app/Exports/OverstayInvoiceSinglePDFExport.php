@@ -62,6 +62,7 @@ class OverstayInvoiceSinglePDFExport
         $deviceId = $invoice->deviceRetrieval?->device?->device_id ?? 'N/A';
         $destination = $invoice->deviceRetrieval?->destination?->name ?? 'N/A';
         $allocationPoint = $invoice->deviceRetrieval?->allocationPoint?->name ?? 'N/A';
+        $formattedTotalAmount = number_format($invoice->total_amount, 2);
 
         $html = <<<HTML
 <!DOCTYPE html>
@@ -271,7 +272,7 @@ class OverstayInvoiceSinglePDFExport
 
     <div class="total">
         <div>Total Amount (GMD)</div>
-        <div>D {number_format($invoice->total_amount, 2)}</div>
+        <div>D {$formattedTotalAmount}</div>
     </div>
 
     <div class="status-box">
