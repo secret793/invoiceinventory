@@ -210,6 +210,33 @@ class DeviceRetrieval extends Model
     }
 
     /**
+     * Override getAttribute to resolve the naming conflict between the 'destination'
+     * string column and the 'destination' BelongsTo relationship. Laravel normally
+     * returns the column value first, preventing ->destination->name from working.
+     * When the relation is eager-loaded, we return the model instead.
+     */
+    public function getAttribute($key)
+    {
+        if ($key === 'destination' && $this->relationLoaded('destination')) {
+            return $this->relations['destination'];
+        }
+        return parent::getAttribute($key);
+    }
+
+    /**
+     * Override setAttribute so that writing a plain string to 'destination'
+     * unloads the relation, ensuring observers and other string-expecting code
+     * always get the raw column value back on subsequent getAttribute calls.
+     */
+    public function setAttribute($key, $value)
+    {
+        if ($key === 'destination' && !($value instanceof Destination)) {
+            $this->unsetRelation('destination');
+        }
+        return parent::setAttribute($key, $value);
+    }
+
+    /**
      * Get the user who approved the finance request
      */
     public function financeApprovedBy()
