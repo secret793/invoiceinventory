@@ -369,10 +369,10 @@
                 @forelse($filteredOverstayDevices as $invoice)
                     <tr class="@if($loop->odd) bg-white @else bg-gray-50 @endif border-b border-gray-200 hover:bg-gray-100 transition">
                         <td class="px-4 py-3 font-medium text-gray-900">{{ $invoice->reference_number }}</td>
-                        <td class="px-4 py-3 text-center">{{ $invoice->deviceRetrieval?->device?->device_id ?? 'N/A' }}</td>
+                        <td class="px-4 py-3 text-center">{{ $invoice->deviceRetrieval?->device?->device_id ?? $invoice->device_number ?? 'N/A' }}</td>
                         <td class="px-4 py-3 text-center text-gray-600">{{ $invoice->sad_boe ?? 'N/A' }}</td>
-                        <td class="px-4 py-3 text-gray-600">{{ $invoice->deviceRetrieval?->destination?->name ?? 'N/A' }}</td>
-                        <td class="px-4 py-3 text-gray-600">{{ $invoice->deviceRetrieval?->allocationPoint?->name ?? 'N/A' }}</td>
+                        <td class="px-4 py-3 text-gray-600">{{ $invoice->deviceRetrieval?->destination?->name ?? $invoice->destination ?? 'N/A' }}</td>
+                        <td class="px-4 py-3 text-gray-600">{{ $invoice->deviceRetrieval?->allocationPoint?->name ?? $invoice->allocation_point_name ?? '—' }}</td>
                         <td class="px-4 py-3 text-center">
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium @if($invoice->overstay_days > 30) bg-red-100 text-red-800 @elseif($invoice->overstay_days > 7) bg-orange-100 text-orange-800 @else bg-yellow-100 text-yellow-800 @endif">
                                 {{ $invoice->overstay_days }}

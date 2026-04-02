@@ -48,14 +48,20 @@ class OverstayDeviceFilterService
             $query->where('reference_number', 'like', "%{$searchTerm}%");
         }
 
-        // Filter by destination
+        // Filter by destination (lives on device_retrievals, not invoices)
         if (!empty($filters['destination_id'])) {
-            $query->where('destination_id', $filters['destination_id']);
+            $destId = $filters['destination_id'];
+            $query->whereHas('deviceRetrieval', function (Builder $q) use ($destId) {
+                $q->where('destination_id', $destId);
+            });
         }
 
-        // Filter by allocation point
+        // Filter by allocation point (lives on device_retrievals, not invoices)
         if (!empty($filters['allocation_point_id'])) {
-            $query->where('allocation_point_id', $filters['allocation_point_id']);
+            $allocId = $filters['allocation_point_id'];
+            $query->whereHas('deviceRetrieval', function (Builder $q) use ($allocId) {
+                $q->where('allocation_point_id', $allocId);
+            });
         }
 
         // Filter by payment status (PP, PD, WAIVED)
@@ -206,15 +212,16 @@ class OverstayDeviceFilterService
     {
         return $this->applyFilters($filters)
             ->select([
+                'id',
                 'reference_number',
                 'sad_boe',
-                'destination_id',
-                'allocation_point_id',
+                'destination',
+                'device_number',
+                'allocation_point_name',
                 'overstay_days',
                 'total_amount',
                 'status',
                 'reference_date',
-                'created_by',
                 'device_retrieval_id',
             ])
             ->with(['deviceRetrieval.device', 'deviceRetrieval.destination', 'deviceRetrieval.allocationPoint'])
@@ -222,15 +229,15 @@ class OverstayDeviceFilterService
             ->map(function ($invoice) {
                 return [
                     'Invoice Number' => $invoice->reference_number,
-                    'Device ID' => $invoice->deviceRetrieval?->device?->device_id ?? 'N/A',
+                    'Device ID' => $invoice->deviceRetrieval?->device?->device_id ?? $invoice->device_number ?? 'N/A',
                     'SAD/BOE' => $invoice->sad_boe ?? 'N/A',
-                    'Destination' => $invoice->deviceRetrieval?->destination?->name ?? 'N/A',
-                    'Allocation Point' => $invoice->deviceRetrieval?->allocationPoint?->name ?? 'N/A',
+                    'Destination' => $invoice->deviceRetrieval?->destination?->name ?? $invoice->destination ?? 'N/A',
+                    'Allocation Point' => $invoice->deviceRetrieval?->allocationPoint?->name ?? $invoice->allocation_point_name ?? '—',
                     'Overstay Days' => $invoice->overstay_days,
                     'Overstay Amount (GMD)' => number_format($invoice->total_amount, 2),
                     'Payment Status' => $this->formatPaymentStatus($invoice->status),
                     'Invoice Date' => $invoice->reference_date ? $invoice->reference_date->format('Y-m-d') : 'N/A',
-                    'Created By' => $invoice->created_by ?? 'System',
+                    'Created By' => $invoice->received_by ?? 'System',
                 ];
             });
     }

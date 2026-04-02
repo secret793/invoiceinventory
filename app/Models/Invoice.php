@@ -23,6 +23,7 @@ class Invoice extends Model
         'driver_name',
         'departure',
         'destination',
+        'allocation_point_name',
         'route',
         'device_number',
         'asset_number',

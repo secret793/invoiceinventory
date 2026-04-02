@@ -186,6 +186,7 @@ class GenerateInvoiceAction extends Action
                         'overstay_days' => $data['overstay_days'],
                         'penalty_amount' => $data['penalty_amount'],
                         'device_number' => $data['device_number'],
+                        'allocation_point_name' => $record->allocationPoint?->name,
                         'total_amount' => $data['total_amount'],
                         'description' => $data['description'] ?? null,
                         'paid_by' => $data['paid_by'] ?? auth()->user()->name,

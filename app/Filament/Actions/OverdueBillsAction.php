@@ -256,6 +256,7 @@ class OverdueBillsAction extends Action
                         'driver_name' => $data['driver_name'] ?? null,
                         'departure' => $data['departure'] ?? null,
                         'destination' => $data['destination'] ?? null,
+                        'allocation_point_name' => $deviceRetrieval->allocationPoint?->name,
                         'device_number' => $data['device_number'],
                         'asset_number' => $data['asset_number'] ?? null,
                         'route' => $data['route'] ?? null,
