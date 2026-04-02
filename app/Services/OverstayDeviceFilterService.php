@@ -28,10 +28,10 @@ class OverstayDeviceFilterService
                   ->orWhere('status', 'WAIVED');
             });
 
-        // Search by device ID (wildcard)
+        // Search by device ID (wildcard) — device lives on DeviceRetrieval, not Invoice
         if (!empty($filters['device_id'])) {
             $searchTerm = $filters['device_id'];
-            $query->whereHas('device', function (Builder $q) use ($searchTerm) {
+            $query->whereHas('deviceRetrieval.device', function (Builder $q) use ($searchTerm) {
                 $q->where('device_id', 'like', "%{$searchTerm}%");
             });
         }
@@ -106,6 +106,20 @@ class OverstayDeviceFilterService
         if (!in_array($sortDirection, ['asc', 'desc'])) {
             $sortDirection = 'desc';
         }
+
+        // Whitelist of allowed sort columns (maps UI names → real DB column names)
+        // This prevents SQL injection AND fixes invoice_number → reference_number mismatch
+        $allowedSortColumns = [
+            'created_at'      => 'created_at',
+            'reference_date'  => 'reference_date',
+            'invoice_number'  => 'reference_number',
+            'reference_number'=> 'reference_number',
+            'overstay_days'   => 'overstay_days',
+            'total_amount'    => 'total_amount',
+            'sad_boe'         => 'sad_boe',
+            'status'          => 'status',
+        ];
+        $sortBy = $allowedSortColumns[$sortBy] ?? 'created_at';
 
         $query->orderBy($sortBy, $sortDirection);
 
