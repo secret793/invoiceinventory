@@ -432,7 +432,10 @@ class ConfirmedAffixedResource extends Resource
                                 ->send();
                         }
                     })
-                    ->visible(fn (ConfirmedAffixed $record): bool => $record->status === 'PENDING'),
+                    ->visible(fn (ConfirmedAffixed $record): bool =>
+                        $record->status === 'PENDING' &&
+                        auth()->user()?->hasRole('Super Admin')
+                    ),
             ])
             ->bulkActions(static::isReadOnlyTrackerOfficer() ? [] : [
                 Tables\Actions\BulkActionGroup::make([
