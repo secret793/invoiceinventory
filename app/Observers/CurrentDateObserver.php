@@ -57,7 +57,9 @@ class CurrentDateObserver
     public function created(Monitoring $monitoring): void
     {
         $this->calculateOverdueHours($monitoring);
-        $monitoring->save();
+        Monitoring::withoutEvents(function () use ($monitoring) {
+            $monitoring->save();
+        });
     }
 
     /**
@@ -66,6 +68,8 @@ class CurrentDateObserver
     public function updated(Monitoring $monitoring): void
     {
         $this->calculateOverdueHours($monitoring);
-        $monitoring->save();
+        Monitoring::withoutEvents(function () use ($monitoring) {
+            $monitoring->save();
+        });
     }
 }
