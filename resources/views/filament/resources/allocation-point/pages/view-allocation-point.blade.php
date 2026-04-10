@@ -17,9 +17,11 @@
                 <x-filament::button wire:click="sendToAllocationPoint" color="success">
                     Send to Allocation Point
                 </x-filament::button>
+                @if(auth()->user()?->hasRole('Super Admin'))
                 <x-filament::button wire:click="returnDeviceToInventory" color="warning">
                     Return to Inventory
                 </x-filament::button>
+                @endif
                 <x-filament::button wire:click="openChangeStatusModal" color="info">
                     Change Device Status
                 </x-filament::button>
