@@ -20,6 +20,7 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\UpdateOverdueCalculations::class,
         \App\Console\Commands\ScheduleOverdueCalculations::class,
         \App\Console\Commands\CleanupDuplicateDataEntryAssignments::class,
+        \App\Console\Commands\BackupDatabase::class,
     ];
 
     /**
@@ -39,6 +40,13 @@ class Kernel extends ConsoleKernel
         // Keep the existing schedules for backward compatibility
         $schedule->command('update:monitoring-current-date')->everyMinute();
         $schedule->command('overstay:recalculate --force')->dailyAt('01:00');
+
+        // Weekly database backup every Sunday at 02:00 AM
+        $schedule->command('db:backup')
+                 ->weeklyOn(0, '02:00')
+                 ->withoutOverlapping()
+                 ->runInBackground()
+                 ->appendOutputTo(storage_path('logs/db-backup.log'));
     }
 
     /**
