@@ -73,7 +73,7 @@ class OverdueBillsAction extends Action
                                 ->required()
                                 ->maxLength(255)
                                 ->unique(Invoice::class, 'reference_number')
-                                ->disabled()
+                                ->disabled(fn () => !auth()->user()?->hasRole('Super Admin'))
                                 ->dehydrated(),
                             
                             Forms\Components\TextInput::make('total_amount')
@@ -82,7 +82,7 @@ class OverdueBillsAction extends Action
                                 ->numeric()
                                 ->prefix('D')
                                 ->required()
-                                ->disabled()
+                                ->disabled(fn () => !auth()->user()?->hasRole('Super Admin'))
                                 ->dehydrated(), // This ensures the field is included in form submission
                             
                             Forms\Components\TextInput::make('paid_by')
@@ -90,7 +90,7 @@ class OverdueBillsAction extends Action
                                 ->default($deviceRetrieval->driver_name)
                                 ->required()
                                 ->maxLength(255)
-                                ->disabled()
+                                ->disabled(fn () => !auth()->user()?->hasRole('Super Admin'))
                                 ->dehydrated(),
                             
                             Forms\Components\TextInput::make('received_by')
@@ -98,7 +98,7 @@ class OverdueBillsAction extends Action
                                 ->default(auth()->user()->name)
                                 ->required()
                                 ->maxLength(255)
-                                ->disabled()
+                                ->disabled(fn () => !auth()->user()?->hasRole('Super Admin'))
                                 ->dehydrated(),
                         ]),
 
@@ -108,14 +108,14 @@ class OverdueBillsAction extends Action
                                 ->label('Device ID')
                                 ->default($device?->device_id)
                                 ->required()
-                                ->disabled()
+                                ->disabled(fn () => !auth()->user()?->hasRole('Super Admin'))
                                 ->dehydrated(),
                             
                             Forms\Components\TextInput::make('asset_number')
                                 ->label('Vehicle Number')
                                 ->default($deviceRetrieval->vehicle_number)
                                 ->maxLength(255)
-                                ->disabled()
+                                ->disabled(fn () => !auth()->user()?->hasRole('Super Admin'))
                                 ->dehydrated(),
                             
                             Forms\Components\TextInput::make('driver_name')
@@ -123,14 +123,14 @@ class OverdueBillsAction extends Action
                                 ->default($deviceRetrieval->driver_name)
                                 ->required()
                                 ->maxLength(255)
-                                ->disabled()
+                                ->disabled(fn () => !auth()->user()?->hasRole('Super Admin'))
                                 ->dehydrated(),
                             
                             Forms\Components\TextInput::make('departure')
                                 ->label('Allocation Point')
                                 ->default($deviceRetrieval->allocationPoint?->name ?? 'Unknown')
                                 ->maxLength(255)
-                                ->disabled()
+                                ->disabled(fn () => !auth()->user()?->hasRole('Super Admin'))
                                 ->dehydrated(),
                             
                             Forms\Components\TextInput::make('destination')
@@ -138,7 +138,7 @@ class OverdueBillsAction extends Action
                                 ->default($deviceRetrieval->destination)
                                 ->required()
                                 ->maxLength(255)
-                                ->disabled()
+                                ->disabled(fn () => !auth()->user()?->hasRole('Super Admin'))
                                 ->dehydrated(),
                             
                             Forms\Components\Select::make('selected_route')
@@ -147,7 +147,7 @@ class OverdueBillsAction extends Action
                                 ->default($currentRoute)
                                 ->searchable()
                                 ->helperText('Select a route if needed')
-                                ->disabled()
+                                ->disabled(fn () => !auth()->user()?->hasRole('Super Admin'))
                                 ->dehydrated()
                                 ->placeholder('Select a route (optional)'),
                             
@@ -157,7 +157,7 @@ class OverdueBillsAction extends Action
                             Forms\Components\TextInput::make('overstay_days_display')
                                 ->label('Overstay Days')
                                 ->default($deviceRetrieval->overstay_days)
-                                ->disabled()
+                                ->disabled(fn () => !auth()->user()?->hasRole('Super Admin'))
                                 ->dehydrated(false),
                             
                             Forms\Components\TextInput::make('penalty_amount')
@@ -166,7 +166,7 @@ class OverdueBillsAction extends Action
                                 ->numeric()
                                 ->prefix('D')
                                 ->required()
-                                ->disabled()
+                                ->disabled(fn () => !auth()->user()?->hasRole('Super Admin'))
                                 ->dehydrated(),
                         ]),
 
@@ -177,14 +177,14 @@ class OverdueBillsAction extends Action
                                 ->default($deviceRetrieval->boe)
                                 ->required()
                                 ->maxLength(255)
-                                ->disabled()
+                                ->disabled(fn () => !auth()->user()?->hasRole('Super Admin'))
                                 ->dehydrated(),
                             
                             Forms\Components\TextInput::make('customs_post')
                                 ->label('E-Tracking/Customs Post')
                                 ->default($customsPostCode)
                                 ->maxLength(255)
-                                ->disabled()
+                                ->disabled(fn () => !auth()->user()?->hasRole('Super Admin'))
                                 ->dehydrated(),
                             
                             Forms\Components\TextInput::make('regime')
@@ -192,7 +192,7 @@ class OverdueBillsAction extends Action
                                 ->default($deviceRetrieval->regime)
                                 ->required()
                                 ->maxLength(255)
-                                ->disabled()
+                                ->disabled(fn () => !auth()->user()?->hasRole('Super Admin'))
                                 ->dehydrated(),
                             
                             Forms\Components\TextInput::make('consignee')
