@@ -186,14 +186,20 @@ class UpdateOverdueCalculations extends Command
                                 ->first();
                                 
                             if ($deviceRetrieval) {
-                                // Force the amount to be recalculated
-                                $deviceRetrieval->overstay_days = $overstayDays;
-                                $deviceRetrieval->overstay_amount = $overstayAmount;
-                                $deviceRetrieval->save();
-                                
-                                $this->info("\n✅ Updated DeviceRetrieval for monitoring ID: " . $monitoring->id . 
-                                         " - Days: " . $overstayDays . 
-                                         ", Amount: " . $overstayAmount);
+                                // Skip RETRIEVED or settled (PD/WAIVED) devices — their overstay is final
+                                if (in_array($deviceRetrieval->retrieval_status, ['RETRIEVED', 'RETURNED']) ||
+                                    in_array($deviceRetrieval->payment_status, ['PD', 'WAIVED'])) {
+                                    // Do not overwrite settled/retrieved records
+                                } else {
+                                    // Force the amount to be recalculated
+                                    $deviceRetrieval->overstay_days = $overstayDays;
+                                    $deviceRetrieval->overstay_amount = $overstayAmount;
+                                    $deviceRetrieval->save();
+
+                                    $this->info("\n✅ Updated DeviceRetrieval for monitoring ID: " . $monitoring->id . 
+                                             " - Days: " . $overstayDays . 
+                                             ", Amount: " . $overstayAmount);
+                                }
                             } else {
                                 // If no record exists, create one
                                 $this->calculationService->updateRelatedDeviceRetrievals($monitoring->id);
