@@ -25,6 +25,17 @@ class OverstayAmountUpdaterRetrieval
             ]);
             return;
         }
+
+        // Skip overstay calculation if payment is already settled (PD or WAIVED)
+        if (in_array($deviceRetrieval->payment_status, ['PD', 'WAIVED'])) {
+            Log::info('Skipping overstay recalculation - payment settled', [
+                'device_retrieval_id' => $deviceRetrieval->id,
+                'device_id' => $deviceRetrieval->device_id,
+                'payment_status' => $deviceRetrieval->payment_status,
+                'timestamp' => now()->toDateTimeString()
+            ]);
+            return;
+        }
         
         // STEP 1: Always recalculate overstay_days first (PROACTIVE)
         // This ensures calculations are always current based on affixing_date vs current time

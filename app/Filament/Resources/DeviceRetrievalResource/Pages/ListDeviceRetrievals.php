@@ -880,10 +880,10 @@ class ListDeviceRetrievals extends ListRecords
                             $isPrivilegedUser = auth()->user()?->hasRole(['Super Admin', 'Warehouse Manager']);
 
                             // Check if device is overdue
-                            $isOverdue = $record->overdue_days > 0;
+                            $isOverdue = $record->overstay_days > 0;
                             $isLongRoute = $record->long_route_id !== null;
                             $minDays = $isLongRoute ? 2 : 1;
-                            $requiresReceipt = $isOverdue && $record->overdue_days >= $minDays;
+                            $requiresReceipt = $isOverdue && $record->overstay_days >= $minDays;
 
                             // If user is privileged, or device isn't overdue, return empty form
                             if ($isPrivilegedUser || !$requiresReceipt) {
@@ -896,7 +896,7 @@ class ListDeviceRetrievals extends ListRecords
                                     ->label('Receipt Number')
                                     ->required()
                                     ->maxLength(255)
-                                    ->helperText("Device is overdue by {$record->overdue_days} days. Receipt number is required.")
+                                    ->helperText("Device is overdue by {$record->overstay_days} days. Receipt number is required.")
                             ];
                         })
                         ->action(function ($record, array $data): void {
@@ -907,10 +907,10 @@ class ListDeviceRetrievals extends ListRecords
                                 $record = DeviceRetrievalModel::findOrFail($record->id);
 
                                 $isPrivilegedUser = auth()->user()?->hasRole(['Super Admin', 'Warehouse Manager']);
-                                $isOverdue = $record->overdue_days > 0;
+                                $isOverdue = $record->overstay_days > 0;
                                 $isLongRoute = $record->long_route_id !== null;
                                 $minDays = $isLongRoute ? 2 : 1;
-                                $requiresReceipt = $isOverdue && $record->overdue_days >= $minDays;
+                                $requiresReceipt = $isOverdue && $record->overstay_days >= $minDays;
 
                                 // Check if receipt is required but not provided
                                 if (!$isPrivilegedUser && $requiresReceipt && empty($data['receipt_number'])) {
@@ -995,23 +995,23 @@ class ListDeviceRetrievals extends ListRecords
                         })
                         ->modalHeading(function ($record) {
                             $isPrivilegedUser = auth()->user()?->hasRole(['Super Admin', 'Warehouse Manager']);
-                            $isOverdue = $record->overdue_days > 0;
+                            $isOverdue = $record->overstay_days > 0;
                             $isLongRoute = $record->long_route_id !== null;
                             $minDays = $isLongRoute ? 2 : 1;
 
-                            if (!$isPrivilegedUser && $isOverdue && $record->overdue_days >= $minDays) {
+                            if (!$isPrivilegedUser && $isOverdue && $record->overstay_days >= $minDays) {
                                 return 'Retrieve Overdue Device';
                             }
                             return 'Retrieve Device';
                         })
                         ->modalDescription(function ($record) {
                             $isPrivilegedUser = auth()->user()?->hasRole(['Super Admin', 'Warehouse Manager']);
-                            $isOverdue = $record->overdue_days > 0;
+                            $isOverdue = $record->overstay_days > 0;
                             $isLongRoute = $record->long_route_id !== null;
                             $minDays = $isLongRoute ? 2 : 1;
 
-                            if (!$isPrivilegedUser && $isOverdue && $record->overdue_days >= $minDays) {
-                                return "This device is overdue by {$record->overdue_days} days. Please provide a receipt number.";
+                            if (!$isPrivilegedUser && $isOverdue && $record->overstay_days >= $minDays) {
+                                return "This device is overdue by {$record->overstay_days} days. Please provide a receipt number.";
                             }
                             return 'Are you sure you want to retrieve this device?';
                         })

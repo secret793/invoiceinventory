@@ -121,13 +121,28 @@ class DeviceRetrievalObserver
                 $deviceRetrieval->overstay_amount = 0;
             }
 
-            // Calculate overdue if status, route, or affixing date is changing
+            // Calculate overdue if status, route, or affixing date is changing.
+            // Skip when payment is already settled (PD or WAIVED) or device is transitioning to RETRIEVED.
             if ($deviceRetrieval->isDirty(['retrieval_status', 'long_route_id', 'affixing_date'])) {
-                Log::info('DeviceRetrieval: Recalculating overstay days due to field changes', [
-                    'id' => $deviceRetrieval->id,
-                    'changed_fields' => array_keys($deviceRetrieval->getDirty())
-                ]);
-                $this->calculateOverdueDays($deviceRetrieval);
+                $originalPaymentStatus = $deviceRetrieval->getOriginal('payment_status') ?? $deviceRetrieval->payment_status;
+                $isSettled = in_array($originalPaymentStatus, ['PD', 'WAIVED']);
+                $isTransitioningToRetrieved = $deviceRetrieval->isDirty('retrieval_status')
+                    && $deviceRetrieval->retrieval_status === 'RETRIEVED';
+
+                if (!$isSettled && !$isTransitioningToRetrieved) {
+                    Log::info('DeviceRetrieval: Recalculating overstay days due to field changes', [
+                        'id' => $deviceRetrieval->id,
+                        'changed_fields' => array_keys($deviceRetrieval->getDirty())
+                    ]);
+                    $this->calculateOverdueDays($deviceRetrieval);
+                } else {
+                    Log::info('DeviceRetrieval: Skipping overstay recalculation - payment settled or transitioning to RETRIEVED', [
+                        'id' => $deviceRetrieval->id,
+                        'payment_status' => $originalPaymentStatus,
+                        'is_settled' => $isSettled,
+                        'is_transitioning_to_retrieved' => $isTransitioningToRetrieved,
+                    ]);
+                }
             }
         } catch (\Exception $e) {
             Log::error('Error in DeviceRetrieval updating observer', [

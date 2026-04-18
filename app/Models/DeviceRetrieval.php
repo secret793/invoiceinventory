@@ -95,7 +95,8 @@ class DeviceRetrieval extends Model
 
         // For Finance Officer, only show devices with overstay_days >= 1
         if ($user->hasRole('Finance Officer')) {
-            $builder->where('overstay_days', '>=', 1);
+            $builder->where('overstay_days', '>=', 1)
+                    ->where('retrieval_status', '!=', 'RETRIEVED');
             return;
         }
 
