@@ -18,6 +18,12 @@ class UpdateOverstayAmounts extends Command
 
         DeviceRetrieval::chunk(100, function ($records) use (&$count) {
             foreach ($records as $record) {
+                // Skip RETRIEVED or settled devices — their overstay is final
+                if (in_array($record->retrieval_status, ['RETRIEVED', 'RETURNED']) ||
+                    in_array($record->payment_status, ['PD', 'WAIVED'])) {
+                    continue;
+                }
+
                 $oldAmount = $record->overstay_amount;
                 $record->updateOverstayAmount();
                 

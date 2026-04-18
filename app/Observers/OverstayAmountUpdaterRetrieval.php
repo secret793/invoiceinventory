@@ -51,6 +51,12 @@ class OverstayAmountUpdaterRetrieval
      */
     public function updated(DeviceRetrieval $deviceRetrieval): void
     {
+        // Skip for RETRIEVED or settled devices — their overstay is final
+        if ($deviceRetrieval->retrieval_status === 'RETRIEVED' ||
+            in_array($deviceRetrieval->payment_status, ['PD', 'WAIVED'])) {
+            return;
+        }
+
         // If overstay_days was changed but amount wasn't updated in the saving event
         if ($deviceRetrieval->wasChanged('overstay_days') && 
             !$deviceRetrieval->wasChanged('overstay_amount')) {

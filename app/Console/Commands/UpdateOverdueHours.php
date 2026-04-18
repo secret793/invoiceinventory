@@ -26,6 +26,11 @@ class UpdateOverdueHours extends Command
         // Update DeviceRetrieval records
         DeviceRetrieval::chunk(100, function ($records) {
             foreach ($records as $record) {
+                // Skip RETRIEVED or settled devices — their overstay is final
+                if (in_array($record->retrieval_status, ['RETRIEVED', 'RETURNED']) ||
+                    in_array($record->payment_status, ['PD', 'WAIVED'])) {
+                    continue;
+                }
                 $record->updateOverdueHours();
                 $record->updateOverstayDays();
             }

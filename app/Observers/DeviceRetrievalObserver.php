@@ -252,6 +252,17 @@ class DeviceRetrievalObserver
 
     private function syncOverdueDays($deviceRetrieval)
     {
+        // Skip for RETRIEVED or settled devices — their overstay is final
+        if (in_array($deviceRetrieval->retrieval_status, ['RETRIEVED', 'RETURNED']) ||
+            in_array($deviceRetrieval->payment_status, ['PD', 'WAIVED'])) {
+            Log::info('syncOverdueDays: Skipping - device is RETRIEVED/RETURNED or payment settled', [
+                'device_retrieval_id' => $deviceRetrieval->id,
+                'retrieval_status' => $deviceRetrieval->retrieval_status,
+                'payment_status' => $deviceRetrieval->payment_status,
+            ]);
+            return;
+        }
+
         DB::beginTransaction();
         
         try {

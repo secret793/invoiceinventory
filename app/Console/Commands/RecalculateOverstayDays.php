@@ -91,6 +91,12 @@ class RecalculateOverstayDays extends Command
     private function processDeviceRetrieval(DeviceRetrieval $deviceRetrieval)
     {
         try {
+            // Skip RETRIEVED or settled devices — their overstay is final
+            if (in_array($deviceRetrieval->retrieval_status, ['RETRIEVED', 'RETURNED']) ||
+                in_array($deviceRetrieval->payment_status, ['PD', 'WAIVED'])) {
+                return;
+            }
+
             $oldDays = $deviceRetrieval->overstay_days;
             $oldAmount = $deviceRetrieval->overstay_amount;
 
