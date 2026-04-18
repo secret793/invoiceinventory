@@ -122,25 +122,24 @@ class DeviceRetrievalObserver
             }
 
             // Calculate overdue if status, route, or affixing date is changing.
-            // Skip when payment is already settled (PD or WAIVED) or device is transitioning to RETRIEVED.
+            // Skip when payment is already settled (PD or WAIVED) or device is RETRIEVED (now or transitioning to it).
             if ($deviceRetrieval->isDirty(['retrieval_status', 'long_route_id', 'affixing_date'])) {
                 $originalPaymentStatus = $deviceRetrieval->getOriginal('payment_status') ?? $deviceRetrieval->payment_status;
                 $isSettled = in_array($originalPaymentStatus, ['PD', 'WAIVED']);
-                $isTransitioningToRetrieved = $deviceRetrieval->isDirty('retrieval_status')
-                    && $deviceRetrieval->retrieval_status === 'RETRIEVED';
+                $isRetrieved = $deviceRetrieval->retrieval_status === 'RETRIEVED';
 
-                if (!$isSettled && !$isTransitioningToRetrieved) {
+                if (!$isSettled && !$isRetrieved) {
                     Log::info('DeviceRetrieval: Recalculating overstay days due to field changes', [
                         'id' => $deviceRetrieval->id,
                         'changed_fields' => array_keys($deviceRetrieval->getDirty())
                     ]);
                     $this->calculateOverdueDays($deviceRetrieval);
                 } else {
-                    Log::info('DeviceRetrieval: Skipping overstay recalculation - payment settled or transitioning to RETRIEVED', [
+                    Log::info('DeviceRetrieval: Skipping overstay recalculation - payment settled or status is RETRIEVED', [
                         'id' => $deviceRetrieval->id,
                         'payment_status' => $originalPaymentStatus,
                         'is_settled' => $isSettled,
-                        'is_transitioning_to_retrieved' => $isTransitioningToRetrieved,
+                        'is_retrieved' => $isRetrieved,
                     ]);
                 }
             }
