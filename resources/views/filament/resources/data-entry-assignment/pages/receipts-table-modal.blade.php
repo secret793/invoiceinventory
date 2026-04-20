@@ -56,7 +56,7 @@
                 <select wire:model.live="receiptFilters.sort_by"
                         id="sort_by"
                         class="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-all">
-                    <option value="date">Date (Latest)</option>
+                    <option value="created_at">Date (Latest)</option>
                     <option value="receipt_number">Receipt Number</option>
                     <option value="total_charge_gmd">Total Amount</option>
                     <option value="moving_trucks">Trucks Count</option>
@@ -146,7 +146,7 @@
                             'route' => 'Route (Short)',
                             'long_route' => 'Route (Long)',
                             'destination' => 'Destination',
-                            'date' => 'Date & Time',
+                            'created_at' => 'Date & Time',
                             'moving_trucks' => 'Trucks',
                             'used' => 'Available Usage',
                             'total_charge_gmd' => 'Total Charged (GMD)',

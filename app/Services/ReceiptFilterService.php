@@ -45,7 +45,7 @@ class ReceiptFilterService
                 $startDateTime .= ' 00:00:00';
             }
             
-            $query->where('date', '>=', $startDateTime);
+            $query->where('created_at', '>=', $startDateTime);
         }
 
         // Filter by end date and time
@@ -59,11 +59,11 @@ class ReceiptFilterService
                 $endDateTime .= ' 23:59:59';
             }
             
-            $query->where('date', '<=', $endDateTime);
+            $query->where('created_at', '<=', $endDateTime);
         }
 
         // Apply sorting
-        $sortBy = $filters['sort_by'] ?? 'date';
+        $sortBy = $filters['sort_by'] ?? 'created_at';
         $sortDirection = $filters['sort_direction'] ?? 'desc';
         
         // Validate sort direction

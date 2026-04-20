@@ -69,7 +69,7 @@ class ViewAssignmentDataEntry extends Page implements HasTable
         'start_time' => null,
         'end_date' => null,
         'end_time' => null,
-        'sort_by' => 'date',
+        'sort_by' => 'created_at',
         'sort_direction' => 'desc',
     ];
 
