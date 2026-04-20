@@ -232,7 +232,7 @@ class ListInvoices extends ListRecords
 
         $params = array_filter($params, fn($v) => $v !== null && $v !== '');
 
-        return redirect(route('export.overstay-receipts', $params));
+        $this->dispatch('open-export-url', url: route('export.overstay-receipts', $params));
     }
 
     public function applyFilters()

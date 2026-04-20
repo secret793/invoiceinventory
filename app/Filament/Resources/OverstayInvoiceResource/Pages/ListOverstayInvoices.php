@@ -192,8 +192,8 @@ class ListOverstayInvoices extends ListRecords
         ];
         
         $params = array_filter($params, fn($value) => $value !== null && $value !== '');
-        
-        return redirect(route('export.overstay-invoices', $params));
+
+        $this->dispatch('open-export-url', url: route('export.overstay-invoices', $params));
     }
 
     public function getViewData(): array

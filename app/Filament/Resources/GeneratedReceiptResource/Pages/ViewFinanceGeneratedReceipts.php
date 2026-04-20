@@ -167,6 +167,6 @@ class ViewFinanceGeneratedReceipts extends Page
         // Remove null values
         $params = array_filter($params, fn($value) => $value !== null);
 
-        return redirect(route('export.receipts', $params));
+        $this->dispatch('open-export-url', url: route('export.receipts', $params));
     }
 }

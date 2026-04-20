@@ -1,4 +1,4 @@
-<div>
+<div x-data @open-export-url.window="window.open($event.detail.url, '_blank')">
     <x-filament-panels::page>
         {{-- Header Section --}}
         <div class="mb-6">

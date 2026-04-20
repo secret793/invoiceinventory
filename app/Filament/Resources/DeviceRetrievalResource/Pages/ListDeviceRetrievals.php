@@ -1538,7 +1538,7 @@ class ListDeviceRetrievals extends ListRecords
     {
         $params = $this->overstayFilters;
         $params = array_filter($params, fn($value) => $value !== null);
-        return redirect(route('export.overstay-devices', $params));
+        $this->dispatch('open-export-url', url: route('export.overstay-devices', $params));
     }
 
     /**

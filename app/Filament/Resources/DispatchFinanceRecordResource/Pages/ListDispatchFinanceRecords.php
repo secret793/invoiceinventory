@@ -181,7 +181,7 @@ class ListDispatchFinanceRecords extends ListRecords
         // Remove null values
         $params = array_filter($params, fn($value) => $value !== null && $value !== '');
 
-        return redirect(route('export.dispatch-finance-records', $params));
+        $this->dispatch('open-export-url', url: route('export.dispatch-finance-records', $params));
     }
 
     public function applyFilters()

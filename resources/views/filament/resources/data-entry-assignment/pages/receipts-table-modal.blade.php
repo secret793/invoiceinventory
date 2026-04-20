@@ -1,4 +1,4 @@
-<div class="p-6">
+<div class="p-6" x-data @open-export-url.window="window.open($event.detail.url, '_blank')">
     <!-- Filter Panel -->
     <div class="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-gray-800 p-4 rounded-lg border border-blue-200 dark:border-gray-700">
         <!-- Row 1: Receipt Search, Destination, Sort -->
