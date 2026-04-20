@@ -332,8 +332,8 @@ class ViewAssignmentDataEntry extends Page implements HasTable
      */
     public function applyReceiptFilters(): void
     {
-        // Trigger reactive refresh
-        $this->dispatch('refreshReceiptTable');
+        // Filters are applied automatically via wire:model.live — no dispatch needed.
+        // Dispatching events here causes the Filament Action modal to close.
     }
 
     /**

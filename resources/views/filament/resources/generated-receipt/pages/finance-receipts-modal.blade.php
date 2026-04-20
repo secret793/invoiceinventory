@@ -110,12 +110,12 @@
             </button>
             <button type="button"
                     wire:click.prevent="exportReceipts"
-                    class="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800 border border-green-600 rounded-md transition-all">
+                    class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-all">
                 📥 Export Excel
             </button>
             <button type="button"
                     wire:click.prevent="exportReceiptsCsv"
-                    class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 border border-blue-600 rounded-md transition-all">
+                    class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-all">
                 📋 Export CSV
             </button>
         </div>
