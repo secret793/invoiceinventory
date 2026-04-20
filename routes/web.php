@@ -46,6 +46,10 @@ Route::get('/export/generated-receipts', [\App\Http\Controllers\GeneratedReceipt
     ->name('export.generated-receipts')
     ->middleware(['auth']);
 
+Route::get('/export/generated-receipts-pdf', [\App\Http\Controllers\GeneratedReceiptsPDFExportController::class, 'export'])
+    ->name('export.generated-receipts-pdf')
+    ->middleware(['auth']);
+
 Route::get('/export/dispatch-finance-records', [\App\Http\Controllers\DispatchFinanceRecordsExportController::class, 'export'])
     ->name('export.dispatch-finance-records')
     ->middleware(['auth']);

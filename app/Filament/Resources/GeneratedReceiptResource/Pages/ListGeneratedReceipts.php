@@ -118,7 +118,26 @@ class ListGeneratedReceipts extends ListRecords
         // Remove null values
         $params = array_filter($params, fn($value) => $value !== null && $value !== '');
 
-        return redirect(route('export.generated-receipts', $params));
+        // Dispatch a browser event so JS opens the URL in a new tab
+        // (redirect() causes a full-page navigation and breaks file downloads in Livewire)
+        $this->dispatch('open-export-url', url: route('export.generated-receipts', $params));
+    }
+
+    public function exportReceiptsPdf()
+    {
+        $params = [
+            'receipt_search' => $this->receiptSearch,
+            'destination_id' => $this->destinationFilter,
+            'allocation_point_id' => $this->allocationPointFilter,
+            'start_date' => $this->startDate,
+            'end_date' => $this->endDate,
+            'sort_by' => $this->sortBy,
+            'sort_direction' => $this->sortDirection,
+        ];
+
+        $params = array_filter($params, fn($value) => $value !== null && $value !== '');
+
+        $this->dispatch('open-export-url', url: route('export.generated-receipts-pdf', $params));
     }
 
     public function applyFilters()
