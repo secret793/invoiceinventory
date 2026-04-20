@@ -26,8 +26,9 @@ class ReceiptExportController extends Controller
             'start_time' => 'nullable|date_format:H:i',
             'end_date' => 'nullable|date_format:Y-m-d',
             'end_time' => 'nullable|date_format:H:i',
-            'sort_by' => 'nullable|string|in:date,receipt_number,total_charge_gmd,moving_trucks',
+            'sort_by' => 'nullable|string|in:date,receipt_number,total_charge_gmd,moving_trucks,created_at',
             'sort_direction' => 'nullable|string|in:asc,desc',
+            'format' => 'nullable|string|in:xlsx,csv',
         ]);
 
         // Build filters array
@@ -39,14 +40,19 @@ class ReceiptExportController extends Controller
             'start_time' => $validated['start_time'] ?? null,
             'end_date' => $validated['end_date'] ?? null,
             'end_time' => $validated['end_time'] ?? null,
-            'sort_by' => $validated['sort_by'] ?? 'date',
+            'sort_by' => $validated['sort_by'] ?? 'created_at',
             'sort_direction' => $validated['sort_direction'] ?? 'desc',
         ];
 
-        // Generate filename with timestamp
-        $filename = 'receipts-' . now()->format('Y-m-d-His') . '.xlsx';
+        $format = $validated['format'] ?? 'xlsx';
 
-        // Export and download
+        if ($format === 'csv') {
+            $filename = 'receipts-' . now()->format('Y-m-d-His') . '.csv';
+            return Excel::download(new ReceiptExport($filters), $filename, \Maatwebsite\Excel\Excel::CSV);
+        }
+
+        // Default: Excel
+        $filename = 'receipts-' . now()->format('Y-m-d-His') . '.xlsx';
         return Excel::download(new ReceiptExport($filters), $filename);
     }
 }

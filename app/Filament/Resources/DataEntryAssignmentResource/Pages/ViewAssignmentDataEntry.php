@@ -387,6 +387,19 @@ class ViewAssignmentDataEntry extends Page implements HasTable
     }
 
     /**
+     * Export receipts to CSV
+     */
+    public function exportReceiptsCsv()
+    {
+        $params = array_merge($this->receiptFilters, [
+            'allocation_point_id' => $this->dataEntryAssignment->allocation_point_id,
+            'format' => 'csv',
+        ]);
+        $params = array_filter($params, fn($value) => $value !== null);
+        $this->dispatch('open-export-url', url: route('export.receipts', $params));
+    }
+
+    /**
      * Get filtered destinations based on search query
      */
     public function getFilteredDestinationsProperty()

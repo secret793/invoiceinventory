@@ -169,4 +169,14 @@ class ViewFinanceGeneratedReceipts extends Page
 
         $this->dispatch('open-export-url', url: route('export.receipts', $params));
     }
+
+    /**
+     * Export receipts to CSV
+     */
+    public function exportReceiptsCsv()
+    {
+        $params = array_merge($this->receiptFilters, ['format' => 'csv']);
+        $params = array_filter($params, fn($value) => $value !== null);
+        $this->dispatch('open-export-url', url: route('export.receipts', $params));
+    }
 }
