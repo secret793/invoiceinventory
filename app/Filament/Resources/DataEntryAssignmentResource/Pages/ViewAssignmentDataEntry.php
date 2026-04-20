@@ -655,7 +655,8 @@ class ViewAssignmentDataEntry extends Page implements HasTable
                         ->label('Truck Number'),
 
                     Forms\Components\TextInput::make('driver_name')
-                        ->label('Driver Name'),
+                        ->label('Driver Name')
+                        ->required(),
                 ])
                 ->action(function (array $data): void {
                     try {
