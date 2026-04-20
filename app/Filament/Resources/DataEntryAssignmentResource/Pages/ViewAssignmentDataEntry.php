@@ -859,7 +859,7 @@ class ViewAssignmentDataEntry extends Page implements HasTable
             ->get()
             ->map(fn ($receipt) => [
                 'receipt_number' => $receipt->receipt_number,
-                'date' => $receipt->date ? $receipt->date->format('Y-m-d H:i') : 'N/A',
+                'date' => $receipt->created_at ? $receipt->created_at->format('Y-m-d H:i') : 'N/A',
                 'moving_trucks' => $receipt->moving_trucks,
                 'used' => $receipt->used,
                 'total_charge_gmd' => 'D ' . number_format($receipt->total_charge_gmd, 2),

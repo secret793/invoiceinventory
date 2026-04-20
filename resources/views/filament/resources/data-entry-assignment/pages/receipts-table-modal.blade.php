@@ -191,7 +191,7 @@
                         <td class="px-6 py-4 whitespace-nowrap text-gray-600 dark:text-gray-400">{{ $receipt->route?->name ?? 'N/A' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-600 dark:text-gray-400">{{ $receipt->longRoute?->name ?? 'N/A' }}</td>
                         <td class="px-6 py-4 text-gray-600 dark:text-gray-400">{{ $receipt->destination?->name ?? 'N/A' }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-gray-600 dark:text-gray-400">{{ $receipt->date ? $receipt->date->format('Y-m-d H:i') : 'N/A' }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-600 dark:text-gray-400">{{ $receipt->created_at ? $receipt->created_at->format('Y-m-d H:i') : 'N/A' }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-right font-medium text-gray-900 dark:text-white">{{ $receipt->moving_trucks }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-gray-600 dark:text-gray-400">{{ $receipt->used }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-right font-medium text-gray-900 dark:text-white">D {{ number_format($receipt->total_charge_gmd, 2) }}</td>
