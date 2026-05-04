@@ -1,0 +1,312 @@
+{
+  "info": {
+    "name": "GNSW E-Tracking – Power BI Dashboard API",
+    "description": "All endpoints for the GNSW E-Tracking Power BI Dashboard.\n\nSet the `base_url` variable to your server (e.g. http://localhost or https://your-domain.com).\n\n**Date Filters (optional on every endpoint)**\n- Single day:  `?date=2024-01-15`\n- Date range:  `?from=2024-01-01&to=2024-01-31`\n- No filter → all-time data",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "KPI Cards",
+      "item": [
+        {
+          "name": "KPI Summary (Trips, Revenue, Active, Avg Duration)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/powerbi/kpi/summary",
+              "host": ["{{base_url}}"],
+              "path": ["api", "powerbi", "kpi", "summary"],
+              "query": [
+                { "key": "date",  "value": "2024-01-15", "disabled": true },
+                { "key": "from",  "value": "2024-01-01", "disabled": true },
+                { "key": "to",    "value": "2024-01-31", "disabled": true }
+              ]
+            },
+            "description": "Returns:\n- `total_trips` – total number of trips (assign_to_agents)\n- `total_revenue` – sum of receipts in GMD\n- `active_trips` – trips currently being monitored\n- `avg_duration_days` – average overstay days from device_retrievals"
+          }
+        },
+        {
+          "name": "KPI Overdue (Trips, Revenue, Rate)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/powerbi/kpi/overdue",
+              "host": ["{{base_url}}"],
+              "path": ["api", "powerbi", "kpi", "overdue"],
+              "query": [
+                { "key": "date",  "value": "2024-01-15", "disabled": true },
+                { "key": "from",  "value": "2024-01-01", "disabled": true },
+                { "key": "to",    "value": "2024-01-31", "disabled": true }
+              ]
+            },
+            "description": "Returns:\n- `overdue_trips` – device retrievals with overstay_days >= 1 and not yet retrieved\n- `overdue_revenue` – sum of overstay_amount for overdue records\n- `overdue_rate_pct` – percentage of active trips that are overdue"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bar Charts",
+      "item": [
+        {
+          "name": "Revenue by Station",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/powerbi/revenue-by-station",
+              "host": ["{{base_url}}"],
+              "path": ["api", "powerbi", "revenue-by-station"],
+              "query": [
+                { "key": "date",  "value": "2024-01-15", "disabled": true },
+                { "key": "from",  "value": "2024-01-01", "disabled": true },
+                { "key": "to",    "value": "2024-01-31", "disabled": true }
+              ]
+            },
+            "description": "Returns an array of stations with:\n- `station_id`, `station_name`\n- `total_revenue` – sum of receipts.total_charge_gmd\n- `receipt_count` – number of receipts\n\nSorted by revenue descending."
+          }
+        },
+        {
+          "name": "Trips by Station",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/powerbi/trips-by-station",
+              "host": ["{{base_url}}"],
+              "path": ["api", "powerbi", "trips-by-station"],
+              "query": [
+                { "key": "date",  "value": "2024-01-15", "disabled": true },
+                { "key": "from",  "value": "2024-01-01", "disabled": true },
+                { "key": "to",    "value": "2024-01-31", "disabled": true }
+              ]
+            },
+            "description": "Returns an array of stations with:\n- `station_id`, `station_name`\n- `total_trips` – count of assign_to_agents records\n\nSorted by trips descending."
+          }
+        },
+        {
+          "name": "Overdue by Station",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/powerbi/overdue-by-station",
+              "host": ["{{base_url}}"],
+              "path": ["api", "powerbi", "overdue-by-station"],
+              "query": [
+                { "key": "date",  "value": "2024-01-15", "disabled": true },
+                { "key": "from",  "value": "2024-01-01", "disabled": true },
+                { "key": "to",    "value": "2024-01-31", "disabled": true }
+              ]
+            },
+            "description": "Returns an array of stations with overdue data:\n- `station_id`, `station_name`\n- `overdue_trips` – count of overdue device retrievals\n- `overdue_revenue` – sum of overstay_amount\n- `avg_overdue_days` – average days overdue\n\nSorted by overdue_trips descending."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Line Charts",
+      "item": [
+        {
+          "name": "Trips Over Time (day)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/powerbi/trips-over-time?granularity=day&from=2024-01-01&to=2024-01-31",
+              "host": ["{{base_url}}"],
+              "path": ["api", "powerbi", "trips-over-time"],
+              "query": [
+                { "key": "granularity", "value": "day",        "description": "day | week | month" },
+                { "key": "from",        "value": "2024-01-01" },
+                { "key": "to",          "value": "2024-01-31" }
+              ]
+            },
+            "description": "Time-series of trip counts. Use `?granularity=day|week|month`.\n\nReturns array of `{ period, trips }`."
+          }
+        },
+        {
+          "name": "Trips Over Time (month)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/powerbi/trips-over-time?granularity=month",
+              "host": ["{{base_url}}"],
+              "path": ["api", "powerbi", "trips-over-time"],
+              "query": [
+                { "key": "granularity", "value": "month" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Overdue Trend (day)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/powerbi/overdue-trend?granularity=day&from=2024-01-01&to=2024-01-31",
+              "host": ["{{base_url}}"],
+              "path": ["api", "powerbi", "overdue-trend"],
+              "query": [
+                { "key": "granularity", "value": "day",        "description": "day | week | month" },
+                { "key": "from",        "value": "2024-01-01" },
+                { "key": "to",          "value": "2024-01-31" }
+              ]
+            },
+            "description": "Time-series of overdue trips and revenue. Use `?granularity=day|week|month`.\n\nReturns array of `{ period, overdue_trips, overdue_revenue }`."
+          }
+        },
+        {
+          "name": "Overdue Trend (month)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/powerbi/overdue-trend?granularity=month",
+              "host": ["{{base_url}}"],
+              "path": ["api", "powerbi", "overdue-trend"],
+              "query": [
+                { "key": "granularity", "value": "month" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pie Chart",
+      "item": [
+        {
+          "name": "Route Type Distribution (Long vs Short)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/powerbi/route-type-distribution",
+              "host": ["{{base_url}}"],
+              "path": ["api", "powerbi", "route-type-distribution"],
+              "query": [
+                { "key": "date",  "value": "2024-01-15", "disabled": true },
+                { "key": "from",  "value": "2024-01-01", "disabled": true },
+                { "key": "to",    "value": "2024-01-31", "disabled": true }
+              ]
+            },
+            "description": "Returns:\n```json\n{\n  \"data\": [\n    { \"route_type\": \"Short Route\", \"trip_count\": 120, \"percentage\": 75.0 },\n    { \"route_type\": \"Long Route\",  \"trip_count\": 40,  \"percentage\": 25.0 }\n  ],\n  \"total_trips\": 160\n}\n```"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Detailed Table",
+      "item": [
+        {
+          "name": "Trip Details – All (page 1)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/powerbi/trip-details?per_page=50&page=1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "powerbi", "trip-details"],
+              "query": [
+                { "key": "per_page", "value": "50",  "description": "Max 200" },
+                { "key": "page",     "value": "1" },
+                { "key": "from",     "value": "2024-01-01", "disabled": true },
+                { "key": "to",       "value": "2024-01-31", "disabled": true }
+              ]
+            },
+            "description": "Paginated trip detail table. All fields from assign_to_agents joined with station, route, and receipt data."
+          }
+        },
+        {
+          "name": "Trip Details – Filter by Station",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/powerbi/trip-details?station_id=1&per_page=50",
+              "host": ["{{base_url}}"],
+              "path": ["api", "powerbi", "trip-details"],
+              "query": [
+                { "key": "station_id", "value": "1",  "description": "allocation_points.id" },
+                { "key": "per_page",   "value": "50" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Trip Details – Long Routes Only",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/powerbi/trip-details?route_type=long&per_page=50",
+              "host": ["{{base_url}}"],
+              "path": ["api", "powerbi", "trip-details"],
+              "query": [
+                { "key": "route_type", "value": "long", "description": "long | short" },
+                { "key": "per_page",   "value": "50" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reference",
+      "item": [
+        {
+          "name": "List All Stations",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/powerbi/stations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "powerbi", "stations"]
+            },
+            "description": "Returns all border stations (allocation_points) with id, name, location, and status. Use the `id` values as `station_id` filters in other endpoints."
+          }
+        }
+      ]
+    }
+  ]
+}
