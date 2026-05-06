@@ -20,6 +20,11 @@ class StoreController
         Response::paginated($result['data'], $result['total'], $page, $perPage);
     }
 
+    public function stats(Request $req): void
+    {
+        Response::success(Store::statusCounts());
+    }
+
     public function show(Request $req): void
     {
         Response::success(Store::findOrFail((int) $req->param('id')));
@@ -37,17 +42,20 @@ class StoreController
     {
         $id   = (int) $req->param('id');
         $data = $req->json();
-        Store::findOrFail($id);
-        $row = Store::update($id, $data);
+        $existing = Store::findOrFail($id);
+
+        // Only allow updating these fields from the stores page
+        $allowed = array_intersect_key($data, array_flip(['status', 'sim_number', 'sim_operator', 'batch_number']));
+        $row = Store::update($id, $allowed);
 
         // Sync back to devices table if linked
-        if (!empty($row['device_id'])) {
-            $updates = array_intersect_key($data, array_flip(['status', 'sim_number', 'sim_operator']));
-            if ($updates) {
-                $sets = implode(', ', array_map(fn($k) => "$k = ?", array_keys($updates)));
+        if (!empty($existing['device_id'])) {
+            $deviceUpdates = array_intersect_key($allowed, array_flip(['status', 'sim_number', 'sim_operator']));
+            if ($deviceUpdates) {
+                $sets = implode(', ', array_map(fn($k) => "$k = ?", array_keys($deviceUpdates)));
                 Database::execute(
                     "UPDATE devices SET $sets, updated_at = NOW() WHERE id = ?",
-                    [...array_values($updates), $row['device_id']]
+                    [...array_values($deviceUpdates), $existing['device_id']]
                 );
             }
         }
@@ -61,7 +69,7 @@ class StoreController
         $row = Store::findOrFail($id);
         Store::delete($id);
 
-        // Delete linked device
+        // Also delete linked device
         if (!empty($row['device_id'])) {
             Device::delete((int) $row['device_id']);
         }
@@ -75,7 +83,40 @@ class StoreController
         $ids    = $data['ids']    ?? [];
         $status = $data['status'] ?? '';
         if (empty($ids) || !$status) Response::error('ids and status are required');
+
         $count = Store::bulkUpdateStatus($ids, $status);
-        Response::success(['updated' => $count]);
+
+        // Sync status to linked devices
+        foreach ($ids as $storeId) {
+            $store = Store::find((int) $storeId);
+            if ($store && !empty($store['device_id'])) {
+                Database::execute(
+                    'UPDATE devices SET status = ?, updated_at = NOW() WHERE id = ?',
+                    [$status, $store['device_id']]
+                );
+            }
+        }
+
+        Response::success(['updated' => $count], "$count item(s) updated to $status");
+    }
+
+    public function bulkDelete(Request $req): void
+    {
+        $data = $req->json();
+        $ids  = $data['ids'] ?? [];
+        if (empty($ids)) Response::error('ids are required');
+
+        $count = 0;
+        foreach ($ids as $id) {
+            $row = Store::find((int) $id);
+            if (!$row) continue;
+            Store::delete((int) $id);
+            if (!empty($row['device_id'])) {
+                Device::delete((int) $row['device_id']);
+            }
+            $count++;
+        }
+
+        Response::success(['deleted' => $count], "$count item(s) deleted");
     }
 }

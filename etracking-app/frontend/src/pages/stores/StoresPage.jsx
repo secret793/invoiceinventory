@@ -14,7 +14,12 @@ const STORE_STATUSES = ['UNCONFIGURED', 'CONFIGURED', 'ONLINE', 'OFFLINE', 'DAMA
 
 const STATUS_DOT = {
   ONLINE: '#16a34a', OFFLINE: '#dc2626', DAMAGED: '#ea580c',
-  FIXED: '#9333ea', LOST: '#6b7280', UNCONFIGURED: '#9ca3af', CONFIGURED: '#0ea5e9',
+  FIXED: '#9333ea', LOST: '#6b7280', UNCONFIGURED: '#ca8a04', CONFIGURED: '#0ea5e9',
+};
+
+const STATUS_BG = {
+  ONLINE: '#dcfce7', OFFLINE: '#fee2e2', DAMAGED: '#ffedd5',
+  FIXED: '#f3e8ff', LOST: '#f3f4f6', UNCONFIGURED: '#fef9c3', CONFIGURED: '#e0f2fe',
 };
 
 export default function StoresPage() {
@@ -22,22 +27,24 @@ export default function StoresPage() {
   const [items, setItems] = useState([]);
   const [stats, setStats] = useState({});
   const [meta, setMeta]   = useState({});
-  const [loading, setLoading]   = useState(false);
-  const [params, setParams]     = useState({ page: 1, per_page: 25 });
+  const [loading, setLoading] = useState(false);
+  const [params, setParams]   = useState({ page: 1, per_page: 25 });
   const [statusFilter, setStatusFilter] = useState('');
-  const [showForm, setShowForm]   = useState(false);
+
+  const [showEdit, setShowEdit]   = useState(false);
   const [editing, setEditing]     = useState(null);
   const [deleting, setDeleting]   = useState(null);
   const [saving, setSaving]       = useState(false);
   const [selected, setSelected]   = useState([]);
+
   const [showBulkStatus, setShowBulkStatus] = useState(false);
   const [bulkStatusVal, setBulkStatusVal]   = useState('');
   const [bulkLoading, setBulkLoading]       = useState(false);
 
-  const [form, setForm] = useState({
-    serial_number: '', device_type: '', batch_number: '',
-    status: 'UNCONFIGURED', date_received: '', sim_number: '', sim_operator: '',
-  });
+  const [showBulkDelete, setShowBulkDelete] = useState(false);
+  const [bulkDeleting, setBulkDeleting]     = useState(false);
+
+  const [editForm, setEditForm] = useState({ status: 'UNCONFIGURED', sim_number: '', sim_operator: '', batch_number: '' });
 
   const fetchItems = useCallback(async (p = params) => {
     setLoading(true);
@@ -63,13 +70,28 @@ export default function StoresPage() {
     setParams(p); fetchItems(p);
   };
 
+  const handleSearch = (search) => {
+    const p = { ...params, search, page: 1 };
+    setParams(p); fetchItems(p);
+  };
+
+  const openEdit = (row) => {
+    setEditing(row);
+    setEditForm({
+      status: row.status || 'UNCONFIGURED',
+      sim_number: row.sim_number || '',
+      sim_operator: row.sim_operator || '',
+      batch_number: row.batch_number || '',
+    });
+    setShowEdit(true);
+  };
+
   const handleSave = async (e) => {
     e.preventDefault(); setSaving(true);
     try {
-      if (editing) await api.put(`/stores/${editing.id}`, form);
-      else         await api.post('/stores', form);
-      notify.success(`Stock item ${editing ? 'updated' : 'created'}`);
-      setShowForm(false); setEditing(null); fetchItems(); fetchStats();
+      await api.put(`/stores/${editing.id}`, editForm);
+      notify.success('Stock item updated');
+      setShowEdit(false); setEditing(null); fetchItems(); fetchStats();
     } catch (e) { notify.error(e.message); }
     finally { setSaving(false); }
   };
@@ -92,24 +114,27 @@ export default function StoresPage() {
     finally { setBulkLoading(false); }
   };
 
-  const openEdit = (row) => {
-    setEditing(row);
-    setForm({
-      serial_number: row.serial_number || '', device_type: row.device_type || '',
-      batch_number: row.batch_number || '', status: row.status || 'UNCONFIGURED',
-      date_received: row.date_received || '', sim_number: row.sim_number || '',
-      sim_operator: row.sim_operator || '',
-    });
-    setShowForm(true);
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true);
+    try {
+      const res = await api.post('/stores/bulk-delete', { ids: selected });
+      notify.success(`${res.data.data?.deleted ?? selected.length} item(s) deleted`);
+      setShowBulkDelete(false); setSelected([]); fetchItems(); fetchStats();
+    } catch (e) { notify.error(e.message); }
+    finally { setBulkDeleting(false); }
   };
 
+  const total = Object.values(stats).reduce((a, b) => a + (b || 0), 0);
+
   const columns = [
-    { header: 'Serial Number', key: 'serial_number', render: v => <span className="font-mono font-semibold">{v}</span> },
-    { header: 'Device Type',   key: 'device_type',   render: v => v || '—' },
-    { header: 'Batch',         key: 'batch_number',  render: v => v || '—' },
-    { header: 'SIM Number',    key: 'sim_number',    render: v => v || '—' },
-    { header: 'Status',        key: 'status',        render: v => <StatusBadge status={v} /> },
+    { header: 'Device ID',    key: 'serial_number', render: v => <span className="font-mono font-semibold text-gray-900">{v || '—'}</span> },
+    { header: 'Device Type',  key: 'device_type',   render: v => v || '—' },
+    { header: 'Batch Number', key: 'batch_number',  render: v => v || '—' },
+    { header: 'Status',       key: 'status',        render: v => <StatusBadge status={v} /> },
     { header: 'Date Received', key: 'date_received', render: v => v ? new Date(v).toLocaleDateString() : '—' },
+    { header: 'SIM Number',   key: 'sim_number',    render: v => v || '—' },
+    { header: 'SIM Operator', key: 'sim_operator',  render: v => v || '—' },
+    { header: 'Added By',     key: 'added_by_name', render: v => v || '—' },
     {
       header: 'Actions', key: 'id',
       render: (_, row) => (
@@ -121,27 +146,24 @@ export default function StoresPage() {
     },
   ];
 
-  const total = Object.values(stats).reduce((a, b) => a + (b || 0), 0);
-
   return (
     <div>
-      <PageHeader title="Inventory / Store" subtitle="Device stock management"
-        actions={
-          <button onClick={() => { setEditing(null); setForm({ serial_number: '', device_type: '', batch_number: '', status: 'UNCONFIGURED', date_received: '', sim_number: '', sim_operator: '' }); setShowForm(true); }}
-            className="btn-primary">+ Add Stock</button>
-        } />
+      <PageHeader title="Stores / Device Stock" subtitle="Device stock — auto-synced from Devices / Trackers section" />
 
       {/* Stats Row */}
       <div className="flex flex-wrap gap-3 mb-5">
-        <div className="card-sm flex items-center gap-2 min-w-[80px]">
-          <p className="text-xl font-bold" style={{ color: '#1E2D7A' }}>{total}</p>
+        <div className="card-sm flex flex-col items-center justify-center min-w-[80px] text-center">
+          <p className="text-2xl font-bold" style={{ color: '#1E2D7A' }}>{total}</p>
           <p className="text-xs text-gray-500">Total</p>
         </div>
         {STORE_STATUSES.map(s => (
           <button key={s} onClick={() => handleStatusTab(s)}
-            className={`card-sm flex items-center gap-2 min-w-[90px] transition-all hover:shadow-md ${statusFilter === s ? 'ring-2' : ''}`}
-            style={{ ringColor: '#1E2D7A', borderColor: statusFilter === s ? '#1E2D7A' : undefined }}>
-            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: STATUS_DOT[s] }} />
+            className="card-sm flex items-center gap-2 min-w-[100px] transition-all hover:shadow-md focus:outline-none"
+            style={{
+              border: `2px solid ${statusFilter === s ? '#1E2D7A' : '#e5e7eb'}`,
+              background: statusFilter === s ? STATUS_BG[s] || '#eef1fb' : 'white',
+            }}>
+            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: STATUS_DOT[s] }} />
             <div className="text-left">
               <p className="text-xs text-gray-500">{s}</p>
               <p className="text-lg font-bold text-gray-900">{stats[s] || 0}</p>
@@ -150,13 +172,26 @@ export default function StoresPage() {
         ))}
       </div>
 
-      {/* Search & bulk */}
-      <div className="flex flex-wrap gap-3 mb-4">
-        <SearchBar onSearch={s => { const p = { ...params, search: s, page: 1 }; setParams(p); fetchItems(p); }} className="w-64" />
+      {/* Info notice */}
+      <div className="rounded-lg px-4 py-2 mb-4 text-sm flex items-center gap-2" style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af' }}>
+        <span>ℹ️</span>
+        <span>Devices created in <strong>Devices / Trackers</strong> appear here automatically. You can edit status/SIM details or transfer devices from there.</span>
+      </div>
+
+      {/* Search & bulk actions */}
+      <div className="flex flex-wrap gap-3 mb-4 items-center">
+        <SearchBar onSearch={handleSearch} className="w-64" placeholder="Search by ID, type, batch…" />
         {selected.length > 0 && (
-          <button onClick={() => setShowBulkStatus(true)} className="btn-secondary btn-sm">
-            Change Status ({selected.length})
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold" style={{ color: '#1E2D7A' }}>{selected.length} selected</span>
+            <button onClick={() => setShowBulkStatus(true)} className="btn-secondary btn-sm">
+              Change Status
+            </button>
+            <button onClick={() => setShowBulkDelete(true)} className="btn-danger btn-sm">
+              Delete Selected
+            </button>
+            <button onClick={() => setSelected([])} className="btn-secondary btn-sm">Clear</button>
+          </div>
         )}
       </div>
 
@@ -165,32 +200,35 @@ export default function StoresPage() {
           selectable selected={selected}
           onSelect={(id, checked) => setSelected(prev => checked ? [...prev, id] : prev.filter(x => x !== id))}
           onSelectAll={checked => setSelected(checked ? items.map(i => i.id) : [])}
-          emptyMessage="No stock items found." />
+          emptyMessage="No stock items found. Add devices in the Devices / Trackers section." />
         <div className="px-4 py-3 border-t border-gray-100">
           <Pagination meta={meta} onPageChange={p => { const np = { ...params, page: p }; setParams(np); fetchItems(np); }} />
         </div>
       </div>
 
-      {/* Form Modal */}
-      <Modal isOpen={showForm} onClose={() => { setShowForm(false); setEditing(null); }}
-        title={editing ? 'Edit Stock Item' : 'Add Stock Item'}
+      {/* Edit Modal — status/SIM/batch only */}
+      <Modal isOpen={showEdit} onClose={() => { setShowEdit(false); setEditing(null); }}
+        title="Edit Stock Item"
         footer={
           <>
-            <button onClick={() => { setShowForm(false); setEditing(null); }} className="btn-secondary">Cancel</button>
-            <button form="store-form" type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving…' : 'Save'}</button>
+            <button onClick={() => { setShowEdit(false); setEditing(null); }} className="btn-secondary">Cancel</button>
+            <button form="store-edit-form" type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving…' : 'Save Changes'}</button>
           </>
         }>
-        <form id="store-form" onSubmit={handleSave} className="space-y-4">
-          <Input label="Serial Number" required value={form.serial_number} onChange={e => setForm(f => ({ ...f, serial_number: e.target.value }))} />
-          <Input label="Device Type" value={form.device_type} onChange={e => setForm(f => ({ ...f, device_type: e.target.value }))} />
-          <Input label="Batch Number" value={form.batch_number} onChange={e => setForm(f => ({ ...f, batch_number: e.target.value }))} />
-          <Input label="Date Received" type="date" value={form.date_received} onChange={e => setForm(f => ({ ...f, date_received: e.target.value }))} />
-          <Input label="SIM Number" value={form.sim_number} onChange={e => setForm(f => ({ ...f, sim_number: e.target.value }))} />
-          <Input label="SIM Operator" value={form.sim_operator} onChange={e => setForm(f => ({ ...f, sim_operator: e.target.value }))} />
-          <Select label="Status" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-            {STORE_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-          </Select>
-        </form>
+        {editing && (
+          <form id="store-edit-form" onSubmit={handleSave} className="space-y-4">
+            <div className="rounded-lg p-3 text-sm" style={{ background: '#f8f9ff', border: '1px solid #e0e4f8' }}>
+              <p className="font-semibold text-gray-700 mb-1">Device: <span className="font-mono">{editing.serial_number}</span></p>
+              <p className="text-gray-500">Type: {editing.device_type} · Batch: {editing.batch_number}</p>
+            </div>
+            <Select label="Status" value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}>
+              {STORE_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </Select>
+            <Input label="Batch Number" value={editForm.batch_number} onChange={e => setEditForm(f => ({ ...f, batch_number: e.target.value }))} />
+            <Input label="SIM Number" value={editForm.sim_number} onChange={e => setEditForm(f => ({ ...f, sim_number: e.target.value }))} placeholder="SIM card number" />
+            <Input label="SIM Operator" value={editForm.sim_operator} onChange={e => setEditForm(f => ({ ...f, sim_operator: e.target.value }))} placeholder="e.g. Africell" />
+          </form>
+        )}
       </Modal>
 
       {/* Bulk Status Modal */}
@@ -206,13 +244,19 @@ export default function StoresPage() {
         <div className="space-y-3">
           <p className="text-sm text-gray-600">Change status for <strong>{selected.length}</strong> selected item(s):</p>
           <Select label="New Status" value={bulkStatusVal} onChange={e => setBulkStatusVal(e.target.value)}>
-            <option value="">Select…</option>
+            <option value="">Select status…</option>
             {STORE_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
           </Select>
         </div>
       </Modal>
 
-      {/* Delete Confirm */}
+      {/* Bulk Delete Confirm */}
+      <ConfirmDialog isOpen={showBulkDelete} onClose={() => setShowBulkDelete(false)}
+        onConfirm={handleBulkDelete} title="Delete Selected Items" danger
+        loading={bulkDeleting}
+        message={`Delete ${selected.length} selected stock item(s) and their linked devices? This cannot be undone.`} />
+
+      {/* Single Delete Confirm */}
       <ConfirmDialog isOpen={!!deleting} onClose={() => setDeleting(null)} onConfirm={handleDelete}
         title="Delete Stock Item" danger message={`Delete "${deleting?.serial_number}"? This cannot be undone.`} />
     </div>
