@@ -33,12 +33,12 @@ class TransferController
         $device = Device::findOrFail((int) $data['device_id']);
 
         $data['original_allocation_point_id']    = $device['allocation_point_id'];
-        $data['original_distribution_point_id']  = $device['distribution_point_id'];
+        $data['from_distribution_point_id']      = $device['distribution_point_id'];
         $data['original_status']                 = $device['status'];
         $data['device_serial']                   = $device['serial_number'] ?? $device['device_id'];
         $data['transfer_status']                 = 'PENDING';
         $data['quantity']                        = $data['quantity'] ?? 1;
-        $data['user_id']                         = $user['id'];
+        unset($data['user_id']); // user_id not in transfers table
 
         if (($data['transfer_type'] ?? '') === 'ALLOCATION' && !empty($data['to_allocation_point_id'])) {
             Device::update((int) $data['device_id'], [
@@ -144,15 +144,15 @@ class TransferController
             if (!empty($device['distribution_point_id'])) continue;
 
             Transfer::create([
-                'device_id'                     => $deviceId,
-                'device_serial'                 => $device['serial_number'] ?? $device['device_id'],
-                'transfer_type'                 => 'DISTRIBUTION',
-                'transfer_status'               => 'PENDING',
-                'to_distribution_point_id'      => $dpId,
-                'original_allocation_point_id'  => $device['allocation_point_id'],
-                'original_distribution_point_id'=> $device['distribution_point_id'],
-                'original_status'               => $device['status'],
-                'quantity'                      => 1,
+                'device_id'                    => $deviceId,
+                'device_serial'                => $device['serial_number'] ?? $device['device_id'],
+                'transfer_type'                => 'DISTRIBUTION',
+                'transfer_status'              => 'PENDING',
+                'to_distribution_point_id'     => $dpId,
+                'original_allocation_point_id' => $device['allocation_point_id'],
+                'from_distribution_point_id'   => $device['distribution_point_id'],
+                'original_status'              => $device['status'],
+                'quantity'                     => 1,
             ]);
             $created++;
         }
