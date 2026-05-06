@@ -38,7 +38,7 @@ class Transfer extends BaseModel
             't',
             'LEFT JOIN devices d             ON t.device_id = d.id',
             'LEFT JOIN distribution_points dp_to   ON t.to_distribution_point_id = dp_to.id',
-            'LEFT JOIN distribution_points dp_from  ON t.original_distribution_point_id = dp_from.id',
+            'LEFT JOIN distribution_points dp_from  ON t.from_distribution_point_id = dp_from.id',
             'LEFT JOIN allocation_points   ap_to   ON t.to_allocation_point_id = ap_to.id',
             'LEFT JOIN allocation_points   ap_from  ON t.original_allocation_point_id = ap_from.id',
         ]);
@@ -61,10 +61,10 @@ class Transfer extends BaseModel
                     'UPDATE devices SET allocation_point_id = ?, updated_at = NOW() WHERE id = ?',
                     [$t['original_allocation_point_id'], $t['device_id']]
                 );
-            } elseif ($t['transfer_type'] === 'DISTRIBUTION' && $t['original_distribution_point_id']) {
+            } elseif ($t['transfer_type'] === 'DISTRIBUTION' && $t['from_distribution_point_id']) {
                 Database::execute(
                     'UPDATE devices SET distribution_point_id = ?, updated_at = NOW() WHERE id = ?',
-                    [$t['original_distribution_point_id'], $t['device_id']]
+                    [$t['from_distribution_point_id'], $t['device_id']]
                 );
             }
         }
