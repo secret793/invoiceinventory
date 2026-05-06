@@ -143,8 +143,8 @@ class DeviceRetrievalController
         );
 
         Database::execute(
-            "UPDATE device_retrievals SET retrieval_status = 'RETURNED', transfer_status = 'pending', distribution_point_id = ?, is_archived = TRUE, archived_at = NOW(), updated_at = NOW() WHERE id = ?",
-            [$dpId, $id]
+            "UPDATE device_retrievals SET retrieval_status = 'RETURNED', transfer_status = 'pending', is_archived = TRUE, archived_at = NOW(), updated_at = NOW() WHERE id = ?",
+            [$id]
         );
 
         Database::execute(
