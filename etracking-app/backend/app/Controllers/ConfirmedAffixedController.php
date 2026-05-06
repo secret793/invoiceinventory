@@ -75,11 +75,12 @@ class ConfirmedAffixedController
         ]);
         $retrieval = DeviceRetrieval::create($retrievalData);
 
-        // 2. Create Monitoring record
+        // 2. Create Monitoring record (monitorings table has no sad_number column)
         Monitoring::create(array_merge(array_intersect_key($ca, array_flip([
-            'device_id', 'boe', 'sad_number', 'vehicle_number', 'regime',
+            'device_id', 'boe', 'vehicle_number', 'regime',
             'destination', 'route_id', 'long_route_id', 'manifest_date',
             'agency', 'agent_contact', 'truck_number', 'driver_name',
+            'allocation_point_id',
         ])), [
             'date'             => $ca['date'],
             'affixing_date'    => $affixDate,
@@ -120,17 +121,17 @@ class ConfirmedAffixedController
 
         if (!$note) Response::error('return_note is required');
 
-        // Update related monitoring
+        // Update related monitoring (use parameterised values — PostgreSQL rejects double-quoted literals)
         Database::execute(
-            'UPDATE monitorings SET note = ?, retrieval_status = "RETURNED", updated_at = NOW() WHERE device_id = ?',
+            "UPDATE monitorings SET note = ?, retrieval_status = 'RETURNED', updated_at = NOW() WHERE device_id = ?",
             [$note, $ca['device_id']]
         );
         Database::execute(
-            'UPDATE device_retrievals SET note = ?, retrieval_status = "RETURNED", updated_at = NOW() WHERE device_id = ?',
+            "UPDATE device_retrievals SET note = ?, retrieval_status = 'RETURNED', updated_at = NOW() WHERE device_id = ?",
             [$note, $ca['device_id']]
         );
         Database::execute(
-            'UPDATE data_entry_assignments SET status = "RETURNED", return_note = ?, updated_at = NOW() WHERE device_id = ?',
+            "UPDATE data_entry_assignments SET status = 'RETURNED', return_note = ?, updated_at = NOW() WHERE device_id = ?",
             [$note, $ca['device_id']]
         );
 
