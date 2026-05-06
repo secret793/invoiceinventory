@@ -76,6 +76,10 @@ etracking-app/
 - Monitoring polls every 10 seconds — `useRef` to avoid stale closure cleanup issues
 - Transfer bulk-approve deletes records after completing (per spec § 3 Approve Transfers)
 - Return to Outstation archives the device_retrievals row (`is_archived = true`) — does NOT delete it
+- `transfers` table uses `from_distribution_point_id` (NOT `original_distribution_point_id` — that column does not exist)
+- `device_retrievals` has `is_archived` + `archived_at` columns (added via ALTER TABLE; documented in schema)
+- DataEntryDetailPage receipts load from `/receipts?allocation_point_id=X` (not via data-entry assignment ID)
+- DataEntryDetailPage dispatch POSTs to `/confirmed-affixed` per device with `regime`/`destination` as name strings
 
 ## Pointers
 - API routes: `etracking-app/backend/routes/api.php`
