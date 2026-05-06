@@ -16,9 +16,11 @@ class Monitoring extends BaseModel
         if (!empty($filters['overstay_min'])) { $where[] = 'm.overstay_days >= ?'; $params[] = $filters['overstay_min']; }
         if (!empty($filters['overstay_max'])) { $where[] = 'm.overstay_days <= ?'; $params[] = $filters['overstay_max']; }
         if (!empty($filters['retrieval_status'])) { $where[] = 'm.retrieval_status = ?'; $params[] = $filters['retrieval_status']; }
+        if (!empty($filters['overdue'])) { $where[] = 'm.overstay_days > 0'; }
+        if (!empty($filters['pending'])) { $where[] = '(m.manifest_date IS NULL OR m.manifest_date = \'\')'; }
         if (!empty($filters['search'])) {
             $s = '%' . $filters['search'] . '%';
-            $where[] = '(m.boe LIKE ? OR m.vehicle_number LIKE ? OR d.device_id LIKE ?)';
+            $where[] = '(m.boe ILIKE ? OR m.vehicle_number ILIKE ? OR d.device_id ILIKE ?)';
             array_push($params, $s, $s, $s);
         }
 
