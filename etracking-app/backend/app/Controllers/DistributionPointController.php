@@ -91,15 +91,14 @@ class DistributionPointController
             if ($device['status'] === 'RECEIVED') continue;
 
             Transfer::create([
-                'device_id'                      => $deviceId,
-                'device_serial'                  => $device['serial_number'] ?? $device['device_id'],
-                'transfer_type'                  => 'ALLOCATION',
-                'transfer_status'                => 'COMPLETED',
-                'from_distribution_point_id'     => $dpId,
-                'to_allocation_point_id'         => $apId,
-                'original_distribution_point_id' => $device['distribution_point_id'],
-                'original_status'                => $device['status'],
-                'quantity'                       => 1,
+                'device_id'                  => $deviceId,
+                'device_serial'              => $device['serial_number'] ?? $device['device_id'],
+                'transfer_type'              => 'ALLOCATION',
+                'transfer_status'            => 'COMPLETED',
+                'from_distribution_point_id' => $dpId,
+                'to_allocation_point_id'     => $apId,
+                'original_status'            => $device['status'],
+                'quantity'                   => 1,
             ]);
 
             Database::execute(
@@ -127,14 +126,13 @@ class DistributionPointController
             if ($device['status'] === 'RECEIVED') continue;
 
             Transfer::create([
-                'device_id'                      => $deviceId,
-                'device_serial'                  => $device['serial_number'] ?? $device['device_id'],
-                'transfer_type'                  => 'DISTRIBUTION',
-                'transfer_status'                => 'COMPLETED',
-                'from_distribution_point_id'     => $dpId,
-                'original_distribution_point_id' => $device['distribution_point_id'],
-                'original_status'                => $device['status'],
-                'quantity'                       => 1,
+                'device_id'                  => $deviceId,
+                'device_serial'              => $device['serial_number'] ?? $device['device_id'],
+                'transfer_type'              => 'DISTRIBUTION',
+                'transfer_status'            => 'COMPLETED',
+                'from_distribution_point_id' => $dpId,
+                'original_status'            => $device['status'],
+                'quantity'                   => 1,
             ]);
 
             Database::execute(
@@ -260,15 +258,14 @@ class DistributionPointController
             if (!empty($pending)) continue;
 
             Transfer::create([
-                'device_id'                      => $deviceId,
-                'device_serial'                  => $device['serial_number'] ?? $device['device_id'],
-                'transfer_type'                  => 'DISTRIBUTION',
-                'transfer_status'                => 'COMPLETED',
-                'from_distribution_point_id'     => $dpId,
-                'to_distribution_point_id'       => $targetDpId,
-                'original_distribution_point_id' => $device['distribution_point_id'],
-                'original_status'                => $device['status'],
-                'quantity'                       => 1,
+                'device_id'                  => $deviceId,
+                'device_serial'              => $device['serial_number'] ?? $device['device_id'],
+                'transfer_type'              => 'DISTRIBUTION',
+                'transfer_status'            => 'COMPLETED',
+                'from_distribution_point_id' => $dpId,
+                'to_distribution_point_id'   => $targetDpId,
+                'original_status'            => $device['status'],
+                'quantity'                   => 1,
             ]);
 
             Database::execute(
