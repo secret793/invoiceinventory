@@ -292,6 +292,8 @@ CREATE TABLE IF NOT EXISTS device_retrievals (
     finance_notes         TEXT,
     note                  TEXT,
     user_id               BIGINT,
+    is_archived           BOOLEAN DEFAULT FALSE,
+    archived_at           TIMESTAMP,
     created_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT dr_device_fk FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE SET NULL,
