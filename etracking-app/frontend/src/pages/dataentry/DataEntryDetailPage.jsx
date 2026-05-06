@@ -57,16 +57,16 @@ export default function DataEntryDetailPage() {
       allocationService.get(id).catch(() => null),
       api.get('/devices', { params: { allocation_point_id: id, per_page: 100, status: statusFilter || undefined } }).catch(() => ({ data: { data: [] } })),
       dataEntryService.list({ allocation_point_id: id, per_page: 50 }).catch(() => ({ data: [] })),
-      dataEntryService.receipts(assignments[0]?.id || 0).catch(() => []),
+      api.get('/receipts', { params: { allocation_point_id: id, per_page: 100 } }).catch(() => ({ data: { data: [] } })),
       api.get('/routes').catch(() => ({ data: { data: [] } })),
       api.get('/long-routes').catch(() => ({ data: { data: [] } })),
       api.get('/regimes').catch(() => ({ data: { data: [] } })),
       api.get('/destinations').catch(() => ({ data: { data: [] } })),
-    ]).then(([apData, devsRes, assignRes, receiptsData, routesRes, longRes, regimesRes, destRes]) => {
+    ]).then(([apData, devsRes, assignRes, receiptsRes, routesRes, longRes, regimesRes, destRes]) => {
       setAp(apData);
       setDevices(devsRes.data?.data || []);
       setAssignments(assignRes.data || []);
-      setReceipts(Array.isArray(receiptsData) ? receiptsData : []);
+      setReceipts(receiptsRes.data?.data || []);
       setRoutes(routesRes.data?.data || []);
       setLongRoutes(longRes.data?.data || []);
       setRegimes(regimesRes.data?.data || []);
@@ -120,15 +120,31 @@ export default function DataEntryDetailPage() {
     if (!selectedDevices.length) { notify.error('Select at least one device to dispatch'); return; }
     setDispatchSaving(true);
     try {
-      const assignment = assignments[0];
-      if (!assignment) { notify.error('No data entry assignment found for this allocation point'); return; }
-      await dataEntryService.assignToAgent(assignment.id, {
+      const selectedReceipt  = receipts.find(r => String(r.id) === String(dispatchForm.receipt_id));
+      const selectedRegime   = regimes.find(r => String(r.id) === String(dispatchForm.regime_id));
+      const selectedDest     = destinations.find(d => String(d.id) === String(dispatchForm.destination_id));
+
+      const payload = {
         ...dispatchForm,
-        device_ids: selectedDevices,
-      });
-      notify.success('Dispatch created successfully');
+        allocation_point_id: id,
+        status:              'PENDING',
+        date:                new Date().toISOString(),
+        boe:                 selectedReceipt?.sad_number || selectedReceipt?.receipt_number || '',
+        sad_number:          selectedReceipt?.sad_number || '',
+        regime:              selectedRegime?.name  || dispatchForm.regime_id,
+        destination:         selectedDest?.name    || dispatchForm.destination_id,
+        transaction_type:    selectedReceipt?.transaction_type || 'SAD',
+      };
+
+      await Promise.all(
+        selectedDevices.map(deviceId =>
+          api.post('/confirmed-affixed', { ...payload, device_id: deviceId })
+        )
+      );
+
+      notify.success(`Dispatched ${selectedDevices.length} device(s) successfully`);
       setShowDispatch(false); setSelectedDevices([]); load();
-    } catch (e) { notify.error(e.message); }
+    } catch (err) { notify.error(err.response?.data?.message || err.message); }
     finally { setDispatchSaving(false); }
   };
 
