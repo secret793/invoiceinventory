@@ -33,7 +33,6 @@ class DeviceRetrievalController
             'search'              => $req->query('search'),
         ];
 
-        // Role-based destination filter for Retrieval Officers
         $permittedDestIds = [];
         if (!PermissionService::isSuperAdmin($user)
             && !PermissionService::hasRole($user, 'Warehouse Manager')
@@ -66,7 +65,6 @@ class DeviceRetrievalController
 
         DeviceRetrieval::findOrFail($id);
 
-        // Finance Officer can only update finance fields
         if (PermissionService::hasRole($user, 'Finance Officer')
             && !PermissionService::isSuperAdmin($user)) {
             $data = array_intersect_key($data, array_flip([
@@ -77,7 +75,6 @@ class DeviceRetrievalController
 
         $row = DeviceRetrieval::update($id, $data);
 
-        // Sync retrieval_status to monitoring
         if (isset($data['retrieval_status'])) {
             Database::execute(
                 'UPDATE monitorings SET retrieval_status = ?, updated_at = NOW() WHERE device_id = ?',
@@ -94,6 +91,106 @@ class DeviceRetrievalController
         DeviceRetrieval::findOrFail($id);
         DeviceRetrieval::delete($id);
         Response::success(null, 'Retrieval deleted');
+    }
+
+    public function retrieve(Request $req): void
+    {
+        $id       = (int) $req->param('id');
+        $data     = $req->json();
+        $retrieval = DeviceRetrieval::findOrFail($id);
+
+        if ($retrieval['retrieval_status'] === 'RETRIEVED') {
+            Response::error('Device already retrieved');
+        }
+
+        // Block if overstay unpaid
+        $overstayDays = (int) ($retrieval['overstay_days'] ?? 0);
+        $payStatus    = $retrieval['payment_status'] ?? 'PP';
+        if ($overstayDays >= 1 && !in_array($payStatus, ['PD', 'PAID', 'WAIVED', 'EXEMPTED'])) {
+            Response::error('Overstay bill must be generated and marked as Paid before device retrieval.');
+        }
+
+        Database::execute(
+            "UPDATE device_retrievals SET retrieval_status = 'RETRIEVED', t1_validation_ref = COALESCE(?, t1_validation_ref), updated_at = NOW() WHERE id = ?",
+            [$data['t1_validation_ref'] ?? null, $id]
+        );
+
+        Database::execute(
+            "UPDATE devices SET status = 'RETRIEVED', updated_at = NOW() WHERE id = ?",
+            [$retrieval['device_id']]
+        );
+
+        Database::execute(
+            "UPDATE monitorings SET retrieval_status = 'RETRIEVED', updated_at = NOW() WHERE device_id = ?",
+            [$retrieval['device_id']]
+        );
+
+        Response::success(DeviceRetrieval::find($id), 'Device retrieved successfully');
+    }
+
+    public function returnToOutstation(Request $req): void
+    {
+        $id       = (int) $req->param('id');
+        $data     = $req->json();
+        $dpId     = $data['distribution_point_id'] ?? null;
+        $retrieval = DeviceRetrieval::findOrFail($id);
+
+        if (!$dpId) Response::error('distribution_point_id is required');
+
+        Database::execute(
+            "UPDATE devices SET status = 'PENDING', distribution_point_id = ?, updated_at = NOW() WHERE id = ?",
+            [$dpId, $retrieval['device_id']]
+        );
+
+        Database::execute(
+            "UPDATE device_retrievals SET retrieval_status = 'RETURNED', transfer_status = 'pending', distribution_point_id = ?, is_archived = TRUE, archived_at = NOW(), updated_at = NOW() WHERE id = ?",
+            [$dpId, $id]
+        );
+
+        Database::execute(
+            'DELETE FROM monitorings WHERE device_id = ?',
+            [$retrieval['device_id']]
+        );
+
+        Response::success(DeviceRetrieval::find($id), 'Device returned to outstation');
+    }
+
+    public function waiver(Request $req): void
+    {
+        $id       = (int) $req->param('id');
+        $user     = $req->user();
+
+        if (!PermissionService::isSuperAdmin($user) && !PermissionService::hasRole($user, 'Admin')) {
+            Response::error('Only Super Admin can waive overstay fees', 403);
+        }
+
+        $retrieval = DeviceRetrieval::findOrFail($id);
+
+        Database::execute(
+            "UPDATE device_retrievals SET payment_status = 'WAIVED', updated_at = NOW() WHERE id = ?",
+            [$id]
+        );
+
+        Response::success(DeviceRetrieval::find($id), 'Overstay fee waived');
+    }
+
+    public function approvePayment(Request $req): void
+    {
+        $id   = (int) $req->param('id');
+        $user = $req->user();
+
+        if (!PermissionService::hasRole($user, 'Finance Officer') && !PermissionService::isSuperAdmin($user)) {
+            Response::error('Only Finance Officers can approve payments', 403);
+        }
+
+        DeviceRetrieval::findOrFail($id);
+
+        Database::execute(
+            "UPDATE device_retrievals SET payment_status = 'PD', finance_approval_date = NOW(), finance_approved_by = ?, updated_at = NOW() WHERE id = ?",
+            [$user['id'], $id]
+        );
+
+        Response::success(DeviceRetrieval::find($id), 'Payment approved');
     }
 
     public function report(Request $req): void
@@ -121,20 +218,18 @@ class DeviceRetrievalController
 
     public function generateInvoice(Request $req): void
     {
-        $id       = (int) $req->param('id');
+        $id        = (int) $req->param('id');
         $retrieval = DeviceRetrieval::findOrFail($id);
+        $calc      = OverstayCalculatorService::calculate($retrieval);
 
-        $calc = OverstayCalculatorService::calculate($retrieval);
-
-        // Update retrieval with fresh overstay calc
         DeviceRetrieval::update($id, [
             'overstay_days'   => $calc['overstay_days'],
             'overstay_amount' => $calc['overstay_amount'],
             'overdue_hours'   => $calc['overdue_hours'],
+            'payment_status'  => 'PP',
         ]);
 
-        // Create or update invoice
-        $existing = \App\Models\Invoice::findByRetrieval($id);
+        $existing    = \App\Models\Invoice::findByRetrieval($id);
         $invoiceData = [
             'device_retrieval_id' => $id,
             'device_id'           => $retrieval['device_id'],

@@ -1,0 +1,1492 @@
+# UI Buttons, Forms & Flow Documentation
+## Invoice Inventory System — Complete Screen-by-Screen Reference
+
+> **Purpose:** This document describes every screen in the system: layout, table columns, header buttons, row actions, bulk actions, and every form field for every button — including validation rules and what happens when the form is submitted. At the end is a full summary of how a device flows through the entire system.
+
+---
+
+## Table of Contents
+
+1. [Devices / Trackers](#1-devices--trackers)
+2. [Stores / Device Stock](#2-stores--device-stock)
+3. [Transfers](#3-transfers)
+4. [Other Items](#4-other-items)
+5. [Distribution Points — View Page](#5-distribution-points--view-page)
+6. [Allocation Points — View Page](#6-allocation-points--view-page)
+7. [Data Entry / Assignment View](#7-data-entry--assignment-view)
+8. [Confirmed Affixed](#8-confirmed-affixed)
+9. [Device Retrievals](#9-device-retrievals)
+10. [Monitoring](#10-monitoring)
+11. [Configuration Screens](#11-configuration-screens)
+    - 11a. Users
+    - 11b. Roles
+    - 11c. Routes
+    - 11d. Long Routes
+    - 11e. Regimes
+    - 11f. Destinations
+    - 11g. Allocation Points
+    - 11h. Distribution Points
+    - 11i. System Settings
+12. [Device Flow Summary](#12-device-flow-summary)
+
+---
+
+## 1. Devices / Trackers
+
+### Layout
+The Devices screen is the main tracker registry. At the top it shows two sets of stat widgets:
+- **Device Statistics Widget** — Stat cards showing counts: Online, Offline, Damaged, Fixed, Lost, Unconfigured.
+- **Device Status Filter Widget** — Clickable coloured buttons (Online / Offline / Damaged / Fixed / Lost / Received) with a live count on each. Clicking a button applies a status filter to the table below.
+
+Below the widgets is the main table with a toolbar (search bar, column toggle, filter icon, and the header action buttons).
+
+---
+
+### Table Columns (18 total)
+
+| Column | Notes |
+|---|---|
+| Device ID | Searchable |
+| Device Type | JT701 / JT709A / JT709C |
+| Batch Number | Hidden by default (toggleable) |
+| Status | Colour badge |
+| Date Received | Sortable |
+| Distribution Point | Via `distributionPoint.name` relationship |
+| SIM Number | Toggleable |
+| SIM Operator | Hidden by default (toggleable) |
+| Added By | Via `user.name` |
+| Allocation Point | Toggleable, via `allocationPoint.name` |
+| Created At | Hidden by default |
+| Cancellation Reason | Hidden by default; shows the `cancelled_at` date as description |
+| **Device Status** (iCloud) | Live badge — Online / Offline / Unknown |
+| **Lock Status** (iCloud) | Live badge — Locked / Unlocked |
+| **Battery Level** (iCloud) | Live percentage |
+| **Location** (iCloud) | Latitude / Longitude |
+| **Run Status** (iCloud) | Live badge |
+| **GPS Time** (iCloud) | Last GPS ping time |
+
+> The six iCloud columns are all toggleable. They are hidden by default and query the iCloud LBS API when shown. The base table query excludes UNCONFIGURED devices and orders by `date_received DESC`.
+
+---
+
+### Table Filters
+
+| Filter | Type | Options |
+|---|---|---|
+| Status | Multi-select | ONLINE / OFFLINE / DAMAGED / FIXED / LOST / RECEIVED |
+| Cancellation Status | Select | Cancelled / Not Cancelled |
+
+---
+
+### Header Buttons
+
+#### 1.1 New Device
+- **Label:** New Device  
+- **Colour:** Primary (default)  
+- **Opens:** Create-record modal (or page)
+
+**Form Fields:**
+
+| Field | Type | Rules |
+|---|---|---|
+| Configured | Toggle | Default off. Controls which fields are shown. |
+| Device Type | Select | Options: JT701, JT709A, JT709C |
+| Device ID | TextInput | Required, unique across devices |
+| Batch Number | TextInput | Default value: `BATCH-{Ymd}` (today's date) |
+| Date Received | DatePicker | Required, max = today |
+| Status | Select | UNCONFIGURED / CONFIGURED / ONLINE / OFFLINE / DAMAGED / FIXED / LOST. Hidden if `configured` toggle is off. |
+| Allocation Point | Select | Searchable dropdown from `allocation_points` table |
+| SIM Number | TextInput | Required + unique **only** if `configured = true` |
+| SIM Operator | TextInput | Required **only** if `configured = true` |
+| iCloud Device GUID | TextInput | Optional |
+
+**On Submit:** Creates a new `Device` record. If configured, SIM fields are required.
+
+---
+
+#### 1.2 Import Products (red / danger button)
+- **Label:** Import Products  
+- **Colour:** Danger (red)  
+- **Opens:** File upload modal
+
+**Form Fields:**
+
+| Field | Type | Rules |
+|---|---|---|
+| File | FileUpload | `.xlsx` only |
+
+**On Submit:** Runs `DevicesImport`. Row-level validation errors are displayed inline (column name + row number + error message).
+
+---
+
+#### 1.3 Download Excel File
+- **Label:** Download Excel File  
+- **Colour:** Secondary  
+- **Action:** No form. Immediately downloads `"Device Import Sheet(1).xlsx"` from storage — a pre-built import template.
+
+---
+
+### Row Actions
+
+#### Edit
+Standard Filament edit action — opens the same form as "New Device" pre-filled with the record's current values.
+
+#### Delete
+Standard delete with confirmation dialog. Runs inside a DB transaction and fires the `DeviceObserver`.
+
+#### Sync iCloud GUID / Re-sync GUID
+- **Label:** "Sync iCloud GUID" if the device has no GUID yet; "Re-sync GUID" if it already has one.  
+- **No form.** On click, calls `ICloudApiService::forAuthUser()->resolveDeviceGuid($record->device_id)` and saves the returned GUID to `devices.icloud_device_guid`.
+
+---
+
+### Bulk Actions
+
+#### Sync iCloud GUIDs (Bulk)
+No confirmation form. Builds a map of iCloud assets, matches each selected device's `device_id` to a `FAssetID`, and saves the GUID. Devices that already have a GUID are skipped.
+
+#### Change Status (Bulk)
+
+**Form:**
+
+| Field | Type | Options |
+|---|---|---|
+| New Status | Select | UNCONFIGURED / CONFIGURED / ONLINE / OFFLINE / DAMAGED / FIXED / LOST |
+
+**On Submit:** Updates `status` on all selected device records.
+
+#### Transfer to Distribution Point (Bulk)
+
+**Form:**
+
+| Field | Type | Rules |
+|---|---|---|
+| Distribution Point | Select | Required — all DPs from `distribution_points` table |
+
+**Validation before submit:**
+- Rejects devices with status OFFLINE, LOST, or DAMAGED.
+- Rejects devices already transferred (already have a `distribution_point_id`).
+- Rejects devices already assigned to an agent.
+
+**On Submit:** Creates a `Transfer` record for each device with `transfer_type = DISTRIBUTION` and `transfer_status = PENDING`.
+
+#### Delete (Bulk)
+Requires confirmation. Runs in a DB transaction and fires `DeviceObserver` for each record.
+
+---
+
+## 2. Stores / Device Stock
+
+### Layout
+Shows a **StoreStatisticsWidget** at the top with stat cards:
+> Total: 753 | Online: 616 | Offline: 0 | Damaged: 2 | Fixed: 0 | Lost: 0 | Configured: 0 | Unconfigured: 0
+
+Below is the standard table.
+
+---
+
+### Table Columns
+
+| Column | Notes |
+|---|---|
+| Device ID (`serial_number`) | Searchable |
+| Device Type | |
+| Batch Number | |
+| Status | Badge — UNCONFIGURED=warning/yellow, ONLINE=success/green, OFFLINE=danger/red, DAMAGED=danger/red, FIXED=success/green, LOST=danger/red |
+| Date Received | |
+| SIM Number | Toggleable |
+| SIM Operator | Toggleable |
+| Added By (`user.name`) | |
+
+**Filter:** Status select.
+
+---
+
+### Row Actions
+
+#### Edit (inline modal)
+
+**Form Fields:**
+
+| Field | Type | Notes |
+|---|---|---|
+| Status | Select | UNCONFIGURED / CONFIGURED / ONLINE / OFFLINE / DAMAGED / FIXED / LOST |
+| SIM Number | TextInput | |
+| SIM Operator | TextInput | |
+
+**On Submit:** Updates both the `Store` record **and** the corresponding `Device` record with the new status and SIM details.
+
+#### Delete
+Standard delete with confirmation.
+
+---
+
+### Bulk Actions
+
+| Action | Form | Logic |
+|---|---|---|
+| Delete | Confirmation only | Deletes selected records |
+| Change Status | Select: OK / NEW / DAMAGED / LOST | Updates `status` on all selected Store records |
+
+---
+
+## 3. Transfers
+
+### Layout
+Standard list page — no widgets. The form for creating/editing a transfer is tabbed.
+
+---
+
+### Create / Edit Form (Tabbed)
+
+#### Tab 1 — Distribution Transfer
+
+| Field | Type | Notes |
+|---|---|---|
+| Device ID | Select | Auto-fills `device_serial` on change |
+| Device Serial | TextInput | Disabled — auto-filled from device selection |
+| From Location | Select | Distribution Points |
+| To Location | Select | Distribution Points |
+| Status (device status) | Select | ONLINE / OFFLINE / DAMAGED / FIXED / LOST |
+| Quantity | TextInput | Numeric |
+
+#### Tab 2 — Allocation Transfer
+
+| Field | Type | Notes |
+|---|---|---|
+| Device ID | Select | Auto-fills `device_serial` on change |
+| Device Serial | TextInput | Disabled — auto-filled |
+| From Location | Select | Allocation Points |
+| To Location | Select | Allocation Points |
+| Quantity | TextInput | Numeric |
+
+---
+
+### Table Columns
+
+| Column | Label | Notes |
+|---|---|---|
+| `device_id` | ID | |
+| `device_serial` | Device Serial | |
+| `status` | Current Status | |
+| `quantity` | Quantity | |
+| `created_at` | Transfer Date | |
+| `transfer_type` | Transfer Type | Badge — ALLOCATION=success/green, DISTRIBUTION=primary/blue |
+| `transfer_status` | Transfer Status | Badge — PENDING=warning/yellow, CANCELLED=danger/red, COMPLETED=success/green |
+| `cancelled_at` | Cancelled At | Hidden by default |
+
+**Filter:** Status by device status.
+
+---
+
+### Bulk Actions
+
+#### Cancel Transfers
+
+**Form:**
+
+| Field | Type | Rules |
+|---|---|---|
+| Cancellation Reason | Textarea | Required, max 1000 characters |
+
+**Validation:** All selected transfers must have `transfer_status = PENDING`.
+
+**On Submit:**
+- For DISTRIBUTION transfers: restores device's `distribution_point_id` to `from_location` and restores original `allocation_point_id`.
+- For ALLOCATION transfers: restores device's `allocation_point_id` to `from_location`.
+- Sets `transfer_status = CANCELLED` + `cancelled_at = now()`.
+- **Deletes** the transfer record after cancelling.
+
+---
+
+#### Approve Transfers
+**Form:** Confirmation dialog only (no fields).
+
+**On Submit:**
+- Sets device `status = RECEIVED`.
+- Updates device `distribution_point_id` (or `allocation_point_id`) to the `to_location`.
+- Sets `transfer_status = COMPLETED`.
+- **Deletes** the transfer record after completing.
+
+---
+
+#### Delete (Bulk)
+**Form:** Confirmation only.
+
+**On Submit:** For PENDING transfers, reverts the device's location fields before deleting.
+
+---
+
+## 4. Other Items
+
+### Layout
+Shows a statistics widget at the top (table format):
+
+| Description | OK | Damaged | Lost | Total | Distributed | Allocated | Assigned | Remaining |
+|---|---|---|---|---|---|---|---|---|
+| 35cm locking cables | … | … | … | … | … | … | … | … |
+| 3m locking cables | … | … | … | … | … | … | … | … |
+| Charging stations | … | … | … | … | … | … | … | … |
+| Wheel barrows | … | … | … | … | … | … | … | … |
+| Trolley | … | … | … | … | … | … | … | … |
+| 60 metres locking cables | … | … | … | … | … | … | … | … |
+| USB charging cables | … | … | … | … | … | … | … | … |
+
+---
+
+### Table Columns
+
+| Column | Label |
+|---|---|
+| `date_received` | Receipt Date |
+| `type` | Item Type |
+| `quantity` | Quantity |
+| `status` | Status |
+| `added_by` | Added By |
+
+**Filter:** Status.
+
+---
+
+### Header Buttons
+
+#### 4.1 Add Inventory
+- **Label:** Add Inventory  
+- **Opens:** Create-record modal/page
+
+**Form Fields:**
+
+| Field | Type | Rules |
+|---|---|---|
+| Item Name | TextInput | Required |
+| Quantity | TextInput | Numeric, required |
+| Type | Select | 35cm locking cables / 3m locking cables / Charging stations / Wheel barrows / Trolley / 60 meters locking cables / USB charging cables |
+| Status | Select | OK / NEW / DAMAGED / LOST |
+| Date Received | DatePicker | |
+
+**On Submit:** Creates a new `OtherItem` record.
+
+---
+
+#### 4.2 Distribute Other Items
+- **Label:** Distribute Other Items  
+- **Opens:** Modal (distribution form for sending items out)
+
+**On Submit:** Records a distribution event for the selected items, reducing the "Remaining" count in the stats widget.
+
+---
+
+#### 4.3 Change Other Items Status
+- **Label:** Change Other Items Status  
+- **Opens:** Modal with status select
+
+**Form:**
+
+| Field | Type | Options |
+|---|---|---|
+| New Status | Select | OK / NEW / DAMAGED / LOST |
+
+**On Submit:** Updates the status on the selected items.
+
+---
+
+### Row Actions
+
+| Action | Form | Logic |
+|---|---|---|
+| Edit | Same fields as Add Inventory, pre-filled | Updates record |
+| Delete | Confirmation only | Deletes record |
+
+---
+
+### Bulk Actions
+
+| Action | Form | Logic |
+|---|---|---|
+| Delete | Confirmation only | Deletes all selected |
+| Change Status | Select: OK / NEW / DAMAGED / LOST | Updates `status` on each selected record |
+
+---
+
+## 5. Distribution Points — View Page
+
+### How to Access
+Navigate to **Distribution Points** in the sidebar → click the **View** (eye) icon on any distribution point row.
+
+### Layout
+The view page shows:
+1. **Other Items table** — two rows (35CM LOCKING CABLES, 3 METRES LOCKING CABLES) × columns (OK / DAMAGED / LOST / TOTAL)
+2. **Device Status stats** — counts of ONLINE / OFFLINE / DAMAGED / FIXED / LOST / RECEIVED at this distribution point
+3. **Status filter tabs** — clickable tabs to filter the device table by status
+4. **Device table** with columns: Device ID, Device Type, Batch Number, Receipt Date, Status, SIM Number, SIM Operator, Added By, Added On
+5. **Action buttons** — visible based on the status of selected devices
+
+---
+
+### Action Buttons
+
+The button visibility is controlled by `determineButtonVisibility()`:
+- **Collect Buttons** are shown when one or more selected devices have status RECEIVED.
+- **Assign Buttons** are shown when no selected devices have status RECEIVED.
+
+---
+
+#### 5.1 Accept Devices
+- **Shown when:** Some selected devices have `status = RECEIVED`.
+- **Method:** `collectDevices()`
+- **No form.** Confirmation only.
+
+**On Submit:**
+- Sets each selected device's `distribution_point_id` = this distribution point's ID.
+- Changes status from RECEIVED to the device's previous non-RECEIVED status (device is now "at" this DP).
+- Clears `allocation_point_id = null`.
+
+---
+
+#### 5.2 Send to Allocation Point
+- **Shown when:** No selected devices have RECEIVED status.
+- **Method:** `sendToAllocationPoint()` → dispatches `open-allocation-modal` event.
+
+**Modal form:**
+
+| Field | Type | Rules |
+|---|---|---|
+| Allocation Point | Select | All allocation points. Required. |
+
+**On Confirm** (`confirmSendToAllocationPoint()`):
+- Validates none of the selected devices have status RECEIVED.
+- Creates a `Transfer` record: `transfer_type = ALLOCATION`, `transfer_status = COMPLETED`, `received = true`.
+- Updates device: `allocation_point_id = selectedAP`, `status = RECEIVED`.
+- Clears `distribution_point_id = null`.
+
+---
+
+#### 5.3 Return Device to Inventory
+- **Method:** `returnDeviceToInventory()`
+- **No form.** Confirmation only.
+
+**Validation:** None of the selected devices may have status RECEIVED.
+
+**On Submit:**
+- Creates a `Transfer` record: `transfer_type = DISTRIBUTION`, `transfer_status = COMPLETED`.
+- Sets device `distribution_point_id = null`, `allocation_point_id = null`.
+- Device effectively goes back to unassigned inventory.
+
+---
+
+#### 5.4 Accept Returned Device
+- **Method:** `acceptReturnedDevice()`
+- **No form.** Confirmation only.
+
+**On Submit:**
+- Finds devices at this DP with status PENDING (i.e. returned from field).
+- Looks up the latest transfer for each device.
+- Restores device status to `transfer.original_status` (default: `'ONLINE'` if null).
+- Sets `distribution_point_id = this->record->id`.
+- **Deletes** the `device_retrievals` record for each device.
+
+---
+
+#### 5.5 Reject Device(s)
+- **Method:** `rejectReturnedDevice()`
+- **No form.** Confirmation only.
+
+**On Submit:**
+- Finds devices with PENDING status at this DP.
+- Looks up the `device_retrieval` record with `retrieval_status = RETURNED`.
+- Sets device `status = RETRIEVED`.
+- Clears `distribution_point_id = null`.
+- Updates `device_retrieval`: `retrieval_status = RETRIEVED`, `transfer_status = pending`.
+
+---
+
+#### 5.6 Change Device Status
+- **Method:** `changeDeviceStatus()` → dispatches `open-status-modal` event.
+
+**Modal form:**
+
+| Field | Type | Options |
+|---|---|---|
+| Status | Select | ONLINE / OFFLINE / DAMAGED / FIXED / LOST |
+
+**Validation:** None of the selected devices may have status RECEIVED.
+
+**On Submit:** Updates `devices.status` for all selected devices.
+
+---
+
+#### 5.7 Send to Another Distribution Point
+- **Method:** `sendToAnotherDistributionPoint()`
+
+**Modal form:**
+
+| Field | Type | Rules |
+|---|---|---|
+| Target Distribution Point | Select | All distribution points. Required. |
+
+**Validation:**
+- None of the selected devices may have status RECEIVED.
+- No pending transfers may exist for the selected devices.
+
+**On Submit:**
+- Creates a `Transfer` record: `transfer_type = DISTRIBUTION`, `transfer_status = COMPLETED`, `received = true`.
+- Sets device `distribution_point_id = selectedTargetDP`.
+- Sets device `status = RECEIVED`.
+
+---
+
+## 6. Allocation Points — View Page
+
+### How to Access
+Navigate to **Allocation Points** → click **View** on any allocation point row.
+
+### Layout
+1. **Status filter tabs** at the top — ONLINE / OFFLINE / DAMAGED / FIXED / LOST / RECEIVED with live counts (e.g. ONLINE(60))
+2. **Device table** — columns: Device ID, Device Type, Batch Number, Receipt Date, Status, SIM Number, SIM Operator, Added By, Added On
+3. **Action buttons**
+
+---
+
+### Action Buttons
+
+#### 6.1 Accept Devices
+- **Method:** `openAllocationTransferModal()` → `processAllocationTransfer()`
+
+**Modal form:**
+
+| Field | Type | Rules |
+|---|---|---|
+| Target Allocation Point | Select | All other allocation points. Required. |
+
+**Validation:** None of the selected devices may have status RECEIVED.
+
+**On Submit:**
+- Creates a `Transfer` record: `transfer_type = ALLOCATION`, `transfer_status = COMPLETED`, `received = true`.
+- Updates device: `allocation_point_id = selectedTargetAP`, `status = RECEIVED`.
+
+> Note: This button effectively sends devices to another AP. Both "Accept Devices" and "Send to Allocation Point" use the same underlying modal and logic.
+
+---
+
+#### 6.2 Send to Allocation Point
+- Same modal form and logic as **Accept Devices** (6.1) above.
+
+---
+
+#### 6.3 Return to Inventory
+- **Method:** `returnDeviceToInventory()`
+- **No form.** Confirmation only.
+
+**On Submit:**
+- Creates a `Transfer` record: `transfer_type = ALLOCATION`, `transfer_status = COMPLETED`.
+- Sets device `allocation_point_id = null`.
+
+---
+
+#### 6.4 Change Device Status
+- **Method:** Sets `isChangeStatusModalOpen = true`.
+
+**Modal form:**
+
+| Field | Type | Options |
+|---|---|---|
+| Status | Select | ONLINE / OFFLINE / DAMAGED / FIXED / LOST |
+
+**Validation:** None of the selected devices may have status RECEIVED.
+
+**On Submit:** Updates `devices.status` for all selected devices.
+
+---
+
+## 7. Data Entry / Assignment View
+
+### How to Access
+Navigate to **Data Entry** in the sidebar → click **View** on any assignment row.
+
+### Layout
+1. **Status filter buttons** above the main device table: Online / Offline / Damaged / Fixed / Lost / Assigned to Agent
+2. **Main device table** showing devices assigned to this allocation point
+3. **Header action buttons** across the top right (hidden on narrow screens, revealed by scrolling)
+
+The dispatch log table (paginated, 10/page) and receipt table (paginated, 10/page) are shown inside their respective modals.
+
+---
+
+### Header Buttons
+
+#### 7.1 New Receipt
+- **Label:** New Receipt  
+- **Colour:** Info (blue)  
+- **Icon:** Ticket  
+- **Modal width:** 4xl  
+- **Visible to:** Users with `create` permission on Receipt
+
+**Form Fields (`getReceiptFormSchema()`):**
+
+| Field | Type | Rules |
+|---|---|---|
+| Receipt Number | TextInput | Required |
+| SAD Number | TextInput | |
+| Transaction Type | Select | SAD / TRUCK |
+| Route | Select | From `routes` table |
+| Long Route | Select | From `long_routes` table. **Either Route or Long Route must be selected.** |
+| Quantity (Used) | Numeric | Number of devices this receipt covers |
+| Destination | Select | Searchable from `destinations` table |
+
+**Validation:** At least one of `route_id` or `long_route_id` must be provided — otherwise a danger notification is shown: *"Please select either Route or Long Route before submitting the form."*
+
+**On Submit:** Creates a `Receipt` record linked to the current assignment.
+
+---
+
+#### 7.2 Dispatch Report
+- **Label:** Dispatch Report  
+- **Colour:** Success (green)  
+- **Icon:** Document Chart Bar  
+- **Modal width:** 7xl  
+- **Visible to:** Users with `viewAny` on DispatchLog
+
+The modal shows the dispatch log table with filter inputs:
+
+| Filter | Type |
+|---|---|
+| Device ID | TextInput |
+| Start Date | DatePicker |
+| Start Time | TimePicker |
+| End Date | DatePicker |
+| End Time | TimePicker |
+| Allocation Point | Select |
+| Sort By | Select (dispatched_at) |
+| Sort Direction | Select (desc/asc) |
+
+**Column headers are clickable** — clicking toggles sort asc/desc. A **Reset** button clears all filters.
+
+**Modal submit button** = "Export to Excel" → redirects to `route('export.dispatch-report', params)` and downloads an Excel file.
+
+---
+
+#### 7.3 Dispatch
+- **Label:** Dispatch  
+- **Colour:** Warning (amber)  
+- **Icon:** Truck  
+- **Modal width:** 2xl  
+- **On open:** Calls `ensureICloudSession(loadReferenceData: true)` — refreshes the iCloud token and loads the vehicle/driver lists from iCloud + local records.
+
+**Full Form (25 fields):**
+
+| # | Field | Type | Rules / Notes |
+|---|---|---|---|
+| 1 | Dispatch Date | DatePicker | Defaults to today. Disabled (read-only). |
+| 2 | Receipt Number | Select (searchable) | Required. Searches by receipt_number or sad_number. Only receipts with `used > 0` shown. Reactive — selecting auto-fills fields 5, 6, 7. |
+| 3 | Device ID | Textarea | Disabled. Auto-filled with the IDs of the currently selected devices. |
+| 4 | BOE | Hidden | Auto-populated from the selected receipt's `sad_number`. |
+| 5 | Transaction Type | Hidden | Auto-populated from receipt. |
+| 6 | Transaction Reference | Hidden | Auto-populated from receipt. |
+| 7 | Transaction Type (display) | Placeholder | Read-only label: shows "Auto-filled from receipt" |
+| 8 | SAD / Truck Reference (display) | Placeholder | Read-only label showing the auto-filled value |
+| 9 | Vehicle Number | Select (searchable) | Required. Options from iCloud `QueryAdminVehicleList` + local assets. Refreshed on modal open. |
+| 10 | Regime | Select | Required. Reactive — filters Destination dropdown. Options: active regimes only. |
+| 11 | Destination | Select (searchable) | Required. Filtered by selected Regime and `status = active`. |
+| 12 | Route | Select | Optional. Reactive — sets unit_charge_gmd and total_charge_gmd. |
+| 13 | Long Route | Select | Optional. Either Route or Long Route should be selected. |
+| 14 | Manifest Date | DatePicker | Optional. |
+| 15 | Agency | TextInput | Optional. |
+| 16 | Agent Contact | TextInput (tel) | Optional. |
+| 17 | Truck Number | TextInput | Optional. |
+| 18 | Driver Name | Select (searchable) | Optional. From iCloud `QueryAdminDriverList` + local drivers. |
+| 19 | Dispatch Type | Select | Required. Options: Regular Dispatch / Receipt of Payment / Planned Dispatch / Analysis starts as scheduled (30 minutes in advance) |
+| 20 | Estimated Time of Departure | DateTimePicker | Required. No seconds. |
+| 21 | Estimated Time of Arrival | DateTimePicker | Required. No seconds. Must be after departure time. |
+| 22 | Completion Rules | Select | Required. Options: 1=Complete (Leave destination) / 2=Complete (Reach destination) / 3=Complete (Unlock in destination) / 4=Complete (Return starting point) |
+| 23 | Container | TextInput | Optional. |
+| 24 | Consignee | TextInput | Optional. |
+| 25 | Goods | TextInput | Optional. |
+| 26 | Carrier | TextInput | Optional. |
+| 27 | Cargo Description | Textarea (2 rows) | Optional. |
+| 28 | Trip / Waybill Name | TextInput | Optional. |
+
+**On Submit — Step by step:**
+
+1. **DB Transaction begins.**
+2. Validates at least one device is selected; throws if none.
+3. Validates the selected Receipt exists and `canBeUsed()` (has `used > 0`); throws if not.
+4. Derives `transaction_type` and `transaction_reference` directly from the receipt object (not from the form fields, because disabled inputs are unreliable across Livewire).
+5. Checks that none of the selected devices already have an `AssignToAgent` record — throws "already dispatched" if any do.
+6. Checks that none of the selected devices have `status = RECEIVED` — throws if any do.
+7. For each selected device:
+   - Creates an `AssignToAgent` record with all form data.
+   - Creates a `ConfirmedAffixed` record with `status = PENDING`.
+   - Creates a `DispatchLog` record.
+   - Clears `device.allocation_point_id = null`.
+8. **DB::commit()**
+9. **Outside the transaction** — calls iCloud `addRouteDeparture` for each device with the dispatch payload (FAssetID, FVehicleName, FDepartureType=0, FFinishType, FIsLbsAnalysis=1, FPlanStartTime, FPlanEndTime, optional: FDriverName, FWaybill, FGoods, FCargoDescribe, FContainerNo, FConsignee, FRouteName).
+   - On iCloud success: saves `icloud_waybill_guid` on both the `AssignToAgent` and `ConfirmedAffixed` records.
+   - On iCloud failure: **does NOT roll back the DB.** Shows a persistent warning notification with the device ID and the failure reason (e.g. "Result 110 — Device not registered in iCloud").
+10. Clears `selectedDevices = []`.
+11. Shows a success or warning notification.
+
+---
+
+#### 7.4 Receipts
+- **Label:** Receipts  
+- **Colour:** Primary  
+- **Icon:** List Bullet  
+- **Modal width:** 7xl  
+- **Visible to:** Users with `viewAny` on Receipt
+
+The modal shows the receipt table with filter inputs:
+
+| Filter | Type |
+|---|---|
+| Receipt Number | TextInput |
+| Destination | Live-search dropdown (type to filter by destination name) |
+| Start Date + Time | DatePicker + TimePicker |
+| End Date + Time | DatePicker + TimePicker |
+| Sort By | Select |
+| Sort Direction | Select |
+
+An **Export** button at the top of the modal redirects to `route('export.receipts', params)`.
+
+---
+
+#### 7.5 Driver (Register Driver)
+- **Label:** Driver  
+- **Colour:** Success (green)  
+- **Icon:** User Plus  
+- **Modal width:** 3xl  
+- **Modal heading:** Register New Driver  
+- **On open:** Refreshes iCloud token and loads vehicle/driver lists.  
+- **Visible to:** Super Admin, Warehouse Manager, Data Entry Officer
+
+**Form — Section 1: Personal Information (2-column grid)**
+
+| Field | Type | Rules |
+|---|---|---|
+| Driver's Name | TextInput | Required |
+| Telephone | TextInput (tel) | Required |
+| Driving Type | Select | A / B / C. Required. |
+| Driving License Number | TextInput | Required |
+| ID Number | TextInput | Optional |
+| City of Residence | TextInput | Required |
+| District of Residence | TextInput | Required |
+| Allocation Point | Select (searchable) | Required. Defaults to the current AP. |
+
+**Form — Section 2: License Images (3-column grid)**
+
+| Field | Type | Rules |
+|---|---|---|
+| Driver Photo | FileUpload (image) | Required, max 2048 KB, stored in `drivers/photos` |
+| License — Front | FileUpload (image) | Required, max 2048 KB, stored in `drivers/licenses` |
+| License — Back | FileUpload (image) | Required, max 2048 KB, stored in `drivers/licenses` |
+
+**Form — Section 3: Assignment (2-column grid)**
+
+| Field | Type | Notes |
+|---|---|---|
+| Driving Vehicle | Select (searchable) | From iCloud `QueryAdminVehicleList` + local assets. Optional. |
+| Co-Driver | Select (searchable) | From iCloud `QueryAdminDriverList` + local drivers. Optional. |
+| Description / Notes | Textarea (full width) | Optional |
+
+**On Submit:**
+1. Saves the driver to the local `drivers` table (images stored locally; **images are NOT sent to iCloud** to avoid timeout).
+2. If `config('icloud.driver_create_sync_enabled')` is false (default): saves locally only, shows success notification.
+3. If sync is enabled: calls `ICloudApiService::addDriver()` with the driver's name, phone, type, license, ID number, district. On iCloud success: saves `icloud_driver_guid` and marks `icloud_synced = true`. On iCloud failure: saves locally but shows a warning notification with the iCloud error code.
+
+---
+
+#### 7.6 Asset (Register Asset / Vehicle)
+- **Label:** Asset  
+- **Colour:** Info (blue)  
+- **Icon:** Truck  
+- **Modal width:** 3xl  
+- **Modal heading:** Register New Asset / Vehicle  
+- **On open:** Refreshes iCloud session.
+
+**Form — Section: Classification (2-column grid)**
+
+| Field | Type | Options |
+|---|---|---|
+| Group | Select | Transit / Vehicles / Container. Required. |
+| Operation | Select | Lease / Self-employed. Optional. |
+| Device ID | Select | From devices table. Optional. |
+
+> Additional asset fields (vehicle number, plate, etc.) follow in the Classification section but the exact fields depend on the `group` selection.
+
+**On Submit:** Creates a local `Asset`/`Vehicle` record.
+
+---
+
+## 8. Confirmed Affixed
+
+### Layout
+Shows the list of devices that have been dispatched and are pending physical affixing to vehicles. This is an intermediate stage between "Dispatched from Data Entry" and "In the field / under monitoring."
+
+---
+
+### Table Columns
+
+| Column |
+|---|
+| Device ID |
+| SAD/T1 (`boe`) |
+| Vehicle Number |
+| Destination |
+| Regime |
+| Route |
+| Long Route |
+| Manifest Date |
+| Agency |
+| Agent Contact |
+| Truck Number |
+| Driver Name |
+
+---
+
+### Header Buttons
+
+#### 8.1 View Report
+- **Label:** View Report  
+- **Colour:** Success (green)  
+- **Icon:** Document Chart Bar  
+- **Modal width:** 7xl
+
+The report modal shows a filtered `ConfirmedAffixLog` table with the same filter controls (device_id, boe, vehicle_number, destination, start/end date+time, sort). Column headers are clickable for sorting.
+
+**Modal submit button** = "Export to Excel" → redirects to `route('export.confirmed-affix-report', params)`.
+
+---
+
+### Row Actions
+
+#### 8.2 Pick for Affixing
+- **Colour:** Green (success)  
+- **Hidden if:** `record.status = 'AFFIXED'`
+
+**Form:**
+
+| Field | Type | Rules |
+|---|---|---|
+| Affixing Date | DateTimePicker | Required. Default = now(). Read-only. |
+
+**On Submit (DB Transaction):**
+1. Creates a `DeviceRetrieval` record with `retrieval_status = NOT_RETRIEVED` and `transfer_status = pending`.
+2. Creates a `ConfirmedAffixLog` record with `status = AFFIXED`.
+3. Deletes the `AssignToAgent` record for this device.
+4. Deletes this `ConfirmedAffixed` record.
+
+**Result:** Device moves from "Confirmed Affixed / Pending" into the active monitoring stage.
+
+---
+
+#### 8.3 Return Data
+- **Shown for:** All records (regardless of status)
+
+**Form:**
+
+| Field | Type | Rules |
+|---|---|---|
+| Return Note | Textarea | Required |
+
+**On Submit:**
+1. Finds or creates a `DataEntryAssignment` record with `status = RETURNED`.
+2. Updates `monitoring.note` for this device.
+3. Updates `device_retrieval.note` for this device.
+4. Deletes this `ConfirmedAffixed` record.
+
+---
+
+### Bulk Actions
+
+#### 8.4 Pick Selected for Affixing (Bulk)
+- **Form:**
+
+| Field | Type | Rules |
+|---|---|---|
+| Affixing Date | DateTimePicker | Required. Default = now(). Read-only. |
+
+**On Submit (DB Transaction, per record):**
+- Skips records already with `status = AFFIXED`.
+- For each remaining record:
+  1. Creates `DeviceRetrieval` with `retrieval_status = NOT_RETRIEVED`.
+  2. Deletes the `assign_to_agents` row for this device.
+  3. Creates `ConfirmedAffixLog` with `status = AFFIXED`.
+  4. Deletes the `ConfirmedAffixed` record.
+
+---
+
+## 9. Device Retrievals
+
+### Layout
+The Device Retrievals screen tracks devices in the field from the point of affixing until they are physically retrieved. It shows a **LiveTimerWidget** (live server time clock) at the top.
+
+---
+
+### Table Columns
+
+| Column | Notes |
+|---|---|
+| Date of Affixing | DateTime |
+| Dispatch Date | Hidden by default |
+| Device ID | Searchable |
+| BOE | Searchable |
+| Transaction Type | Badge — SAD=primary, TRUCK=success |
+| T1 Ref | Searchable; shows `—` if empty |
+| Vehicle Number | Searchable |
+| Regime | |
+| Allocation Point | Sortable |
+| Destination | Sortable |
+| Retrieval Status | Badge — NOT_RETRIEVED=warning, RETRIEVED=success |
+| Overstay Days | Red if > 0, green if 0 |
+| Overstay Amount | Money (GMD) |
+| Payment Status | Badge — PP=Pending Payment/red, PD=Paid/green |
+
+**Table Filters:**
+
+| Filter | Options |
+|---|---|
+| Retrieval Status | Retrieved / Not Retrieved |
+| Payment Status | Pending Payment / Paid |
+| Overstay Days Range | Min + Max numeric inputs |
+
+> **Finance Officer visibility:** Finance Officers see only records where `overstay_days >= 1`.
+
+---
+
+### Header Buttons
+
+#### 9.1 New Device Retrieval
+Standard Filament CreateAction — opens the create form for manually entering a new retrieval record.
+
+#### 9.2 Device Retrieval Report
+- **Colour:** Info  
+- **Modal width:** 7xl
+
+Shows the `DeviceRetrievalLog` table inside the modal with these filter controls: Search (device_id / boe / vehicle_number), Device ID, BOE, Vehicle Number, Start/End date+time, Retrieval Status, Action Type, Allocation Point, Sort By, Sort Direction.
+
+**Modal submit** = "Export to Excel" → `route('export.device-retrieval-report', params)`.
+
+#### 9.3 Device Retrieval Report #2
+- **Colour:** Warning (amber)  
+- **Modal width:** 7xl
+
+Similar to Report #1 but requires a **Retrieval Status** selection before exporting. Exports to `route('export.device-retrieval-report-2', params)`.
+
+#### 9.4 View Overstay Devices
+- **Colour:** Danger (red)  
+- **Visible to:** All logged-in users
+
+Opens the overstay devices modal with filter inputs:
+
+| Filter |
+|---|
+| Device ID |
+| BOE |
+| Invoice Number |
+| Destination (live search) |
+| Allocation Point (live search) |
+| Payment Status |
+| Overstay Amount Min / Max |
+| Overstay Days Min / Max |
+| Start Date / End Date |
+| Sort By / Direction |
+
+The modal also shows **overstay statistics** (totals by destination/AP).
+
+#### 9.5 Manual Overstay Days
+- **Colour:** Warning (amber)  
+- **Visible to:** Super Admin only  
+- **Requires:** Exactly 1 device retrieval record selected via checkbox.
+
+**Form:**
+
+| Field | Type | Rules |
+|---|---|---|
+| Enter New Overstay Days Number | TextInput (numeric) | Required, min = 0 |
+
+**On Submit:** Updates `device_retrievals.overstay_days`. The `DeviceRetrievalObserver` then syncs the value to the `Monitoring` table automatically.
+
+---
+
+### Row Actions (inside an ActionGroup dropdown)
+
+#### 9.6 Retrieve Device
+- **Visible when:** `retrieval_status = NOT_RETRIEVED` AND user has role Super Admin / Warehouse Manager / Retrieval Officer.
+
+**Form fields are dynamic:**
+
+*For SAD transactions (last device on a receipt):*
+
+| Field | Type | Rules |
+|---|---|---|
+| Receipt Number (read-only) | Placeholder | Shows the linked receipt number |
+| T1 Validation Reference | TextInput | Required for the last device on a SAD receipt. Max 100 chars. |
+
+*For SAD transactions (non-last device):* No T1 field.
+
+*If device is overdue (overdue_days ≥ threshold) and user is NOT Super Admin / Warehouse Manager:*
+
+| Field | Type | Rules |
+|---|---|---|
+| Receipt Number | TextInput | Required. Max 255. "Device is overdue by X days. Receipt number is required." |
+
+*For TRUCK transactions:* Only the receipt number field if overdue; no T1 field ever.
+
+**Validation before action:**
+- If device has `overstay_days >= 1` and `payment_status ≠ PD` and not waived → blocks retrieval: "Overstay bill MUST be generated and marked as Paid before device retrieval."
+- If `canBeRetrieved()` returns false → blocks: "Payment must be completed before retrieval."
+
+**On Submit (DB Transaction):**
+1. Sets `device_retrievals.retrieval_status = RETRIEVED`.
+2. Saves `t1_validation_ref` if provided.
+3. Saves `receipt_number` if provided.
+4. Sets `devices.status = RETRIEVED`.
+5. Observers handle syncing `Monitoring` table automatically.
+
+---
+
+#### 9.7 Return to Outstation
+- **Visible when:** `retrieval_status = RETRIEVED` AND `transfer_status ≠ completed` AND user has role Super Admin / Warehouse Manager / Retrieval Officer.
+
+**Form:**
+
+| Field | Type | Rules |
+|---|---|---|
+| Select Distribution Point | Select (searchable) | Required. From all distribution points. |
+
+**On Submit (DB Transaction):**
+1. Sets `devices.status = PENDING`, `devices.distribution_point_id = selected DP`.
+2. Sets `device_retrievals.retrieval_status = RETURNED`, `transfer_status = pending`, `distribution_point_id = selected DP`.
+3. **Archives** the `device_retrievals` record (`is_archived = true`, `archived_at = now()`) — does NOT delete it, preserving invoice records.
+4. Deletes the `monitorings` record for this device.
+
+---
+
+#### 9.8 Generate Overstay Bill (Overdue Bills)
+- **Visible when:** `overstay_days >= 1` AND `payment_status ≠ PD` AND record is not waived.  
+- **Action class:** `OverdueBillsAction`
+
+Generates an overstay invoice. The form fields and exact calculation are defined inside `OverdueBillsAction`. The overstay amount is calculated using: `overstay_days × route.base_usd_amount × exchange_rate_gmd_usd` (from system settings).
+
+---
+
+#### 9.9 Admin Waiver
+- **Visible when:** User has role Super Admin or Admin AND `overstay_days > 0` AND `payment_status = PP` AND not already waived.  
+- **Action class:** `AdminWaiverAction`
+
+Allows an administrator to waive the overstay fee — marks the record as waived, enabling retrieval without payment.
+
+---
+
+#### 9.10 Approve Payment (Finance Approval)
+- **Visible when:** User has role Finance Officer or Super Admin AND `payment_status = PP` AND `overstay_amount > 0`.  
+- **Action class:** `FinanceApprovalAction`
+
+Marks the `payment_status = PD` (Paid), enabling device retrieval.
+
+---
+
+## 10. Monitoring
+
+### Layout
+The Monitoring screen shows all devices currently in the field (post-affixing). It shows a **LiveTimerWidget** at the top (live server time, auto-refreshes every 10 seconds via `->poll('10s')`).
+
+---
+
+### Table Columns
+
+| Column | Notes |
+|---|---|
+| Dispatch Date | DateTime, sortable |
+| Device ID | Searchable |
+| BOE | Searchable |
+| Vehicle No. | Searchable |
+| Regime | Searchable |
+| Route | Searchable |
+| Long Route | Searchable |
+| Manifest Date | Date |
+| Destination | Searchable |
+| Agency | Searchable |
+| Agent Contact | Searchable |
+| Truck No. | Searchable |
+| Driver Name | Searchable |
+| Affixing Date | DateTime — shows as "X time ago" |
+| Overdue Hours | Red + bold if > 0. Format: "X hour(s)" or "On time". Shows time since affixing_date as description. |
+| Overstay Days | Red + bold if > 0. Format: "X day(s)" or "On time". Shows overstay amount as description if > 0. |
+| Retrieval Status | Badge — NOT_RETRIEVED=danger, RETRIEVED=success, RETURNED=warning |
+
+**Table Filters:**
+
+| Filter | Options |
+|---|---|
+| Pending Devices (Ternary) | All / Show Only Pending (no manifest_date) / Show Only Non-Pending |
+| Overdue Devices (Ternary) | All / Show Only Overdue (overdue_hours > 0) / Show Only Non-Overdue |
+
+Default sort: `date DESC`. Table polls every 10 seconds for live overdue hours updates.
+
+---
+
+### Header Buttons
+
+#### 10.1 Overdue Devices
+- **Label:** Overdue Devices  
+- **Colour:** Red (danger)  
+- **No form.** On click: resets current table filters and applies `overdue = true` filter, showing only devices with `overdue_hours > 0`.
+
+---
+
+### Row Actions
+
+#### 10.2 Add Note
+- **Label:** Add Note  
+- **Icon:** Pencil Square  
+- **Modal width:** md
+
+**Form:**
+
+| Field | Type | Rules |
+|---|---|---|
+| Note | Textarea | Required, max 1000 characters |
+| Manifest Date | DateTimePicker | Optional — allows updating the manifest date |
+
+**On Submit:**
+- Calls `$record->addNewNote($data['note'], $data['manifest_date'])` on the `Monitoring` model.
+- If successful: shows success notification "Note Added — Your note has been saved successfully!"
+- If failed: shows danger notification with error message.
+
+---
+
+## 11. Configuration Screens
+
+All configuration screens are under the **Configuration** navigation group (visible to Super Admin only unless noted).
+
+---
+
+### 11a. Users
+
+**Navigation:** Configuration → Users  
+**Visible to:** Super Admin only
+
+#### Table
+Standard Filament users table showing: Name, Username, Email, Roles.
+
+#### Form (Create/Edit)
+
+**Section: Basic Info**
+
+| Field | Type | Rules |
+|---|---|---|
+| Name | TextInput | Required, max 255 |
+| Username | TextInput | Required, unique (ignores self on edit), max 100. Used as iCloud login username — must match the iCloud GPS account exactly (case-sensitive). |
+| Email | TextInput (email) | Required, unique, max 255. Used for inventory system login. |
+| Password | TextInput (password) | Required on Create. Hashed with bcrypt. Must be confirmed. |
+| Password Confirmation | TextInput (password) | Required on Create. Not saved (dehydrated = false). |
+
+**Section: Role Assignment**
+
+| Field | Type | Rules |
+|---|---|---|
+| Select Roles | Select (multi, searchable) | Required. Relation to `roles` table. |
+
+**Section: iCloud Credentials**
+
+Shows a read-only status placeholder: *"The username above and the inventory password are automatically used for iCloud. The password is stored as MD5 — never in plain text."*
+
+---
+
+### 11b. Roles
+
+**Navigation:** Configuration → Roles  
+**Visible to:** Super Admin
+
+#### Form (Create/Edit)
+
+| Field | Type | Rules |
+|---|---|---|
+| Name | TextInput | Required, unique |
+| Guard Name | TextInput | Default: web |
+| Description | Textarea | Optional |
+
+**Section: Permissions (Tabbed)**
+
+- **Tab: Allocation Points** — CheckboxList of all `view_allocationpoint_*` and `view_data_entry_*` permissions, grouped by allocation point name.
+- **Tab: Other Permissions** — CheckboxList of remaining permissions (destinations, system-level).
+
+**On Submit:** Creates/updates the Role and syncs the checked permissions via Spatie's `syncPermissions()`.
+
+---
+
+### 11c. Routes
+
+**Navigation:** Configuration → Routes
+
+#### Form
+
+| Field | Type | Rules |
+|---|---|---|
+| Name | TextInput | Required, unique |
+| Description | Textarea | Optional |
+| Amount (GMD) | TextInput (decimal) | The per-trip charge in GMD used for receipt generation. |
+| Base USD Amount | TextInput (decimal) | Used in overstay fee calculation: `overstay_days × base_usd_amount × exchange_rate`. |
+
+---
+
+### 11d. Long Routes
+
+**Navigation:** Configuration → Long Routes
+
+Same form fields as Routes (Name, Description, Amount, Base USD Amount). Long routes represent cross-border / longer-duration trips. The overstay threshold is 2 days (vs 1 day for short routes).
+
+---
+
+### 11e. Regimes
+
+**Navigation:** Configuration → Regimes
+
+#### Form
+
+| Field | Type | Rules |
+|---|---|---|
+| Name | TextInput | Required |
+| Description | Textarea | Optional |
+| Status | Toggle / Select | Active (is_active = true) / Inactive (is_active = false) |
+
+Inactive regimes do not appear in the Dispatch form's Regime dropdown.
+
+---
+
+### 11f. Destinations
+
+**Navigation:** Configuration → Destinations
+
+#### Form
+
+| Field | Type | Rules |
+|---|---|---|
+| Name | TextInput | Required, unique |
+| Regime | Select | Required. Links destination to a regime. |
+| Address | TextInput | Optional |
+| Latitude | TextInput | Optional |
+| Longitude | TextInput | Optional |
+| Status | Select | Active / Inactive |
+| Default Location | Toggle | Optional |
+
+**On Create:** Automatically creates **11 Spatie permissions** for this destination (with the destination's slug appended):
+- `view_{slug}`, `edit_{slug}`, `delete_{slug}`
+- `manage_devices_{slug}`, `assign_devices_{slug}`, `track_devices_{slug}`, `view_devices_{slug}`
+- `manage_routes_{slug}`, `create_routes_{slug}`, `edit_routes_{slug}`, `view_routes_{slug}`
+
+These permissions can then be assigned to Retrieval Officers and other roles to restrict which destinations they can see.
+
+---
+
+### 11g. Allocation Points
+
+**Navigation:** Configuration → Allocation Points
+
+#### Form
+
+| Field | Type | Rules |
+|---|---|---|
+| Name | TextInput | Required |
+| Location | TextInput | Optional |
+
+**On Create:** Automatically creates **6 Spatie permissions** for this allocation point:
+- `view_allocationpoint_{slug}`, `edit_allocationpoint_{slug}`, `delete_allocationpoint_{slug}`
+- `view_data_entry_{slug}`, `edit_data_entry_{slug}`, `delete_data_entry_{slug}`
+
+---
+
+### 11h. Distribution Points
+
+**Navigation:** Configuration → Distribution Points
+
+#### Form
+
+| Field | Type | Rules |
+|---|---|---|
+| Name | TextInput | Required |
+| Location | TextInput | Optional |
+
+No auto-generated permissions. Distribution points are used as field outstation locations.
+
+---
+
+### 11i. System Settings
+
+**Navigation:** Configuration → System Settings
+
+#### Table
+Read-only list showing: Key, Value, Description.
+
+Current settings:
+- `exchange_rate_gmd_usd` — the GMD-to-USD exchange rate used in overstay amount calculation.
+
+#### Row Action: Edit
+
+**Form:**
+
+| Field | Type | Rules |
+|---|---|---|
+| Key | TextInput | Disabled (read-only) |
+| Value | TextInput (numeric) | Required. For exchange_rate: enter the current GMD per 1 USD rate. |
+| Description | TextInput | Disabled (read-only) |
+
+**On Submit:** Updates the setting value. The new exchange rate is immediately used in all overstay fee calculations.
+
+---
+
+## 12. Device Flow Summary
+
+This section describes the complete lifecycle of a device — from the moment it enters the warehouse to the moment it is physically retrieved from the field.
+
+---
+
+```
+WAREHOUSE INTAKE
+      │
+      ▼
+[1. Devices / Trackers — Create]
+   Device is registered with:
+   - device_id, device_type, batch_number
+   - date_received, SIM details (if configured)
+   - Status: UNCONFIGURED → CONFIGURED after SIM is added
+      │
+      ▼
+[2. Bulk Transfer to Distribution Point]
+   (Devices screen → Bulk Action: Transfer to Distribution Point)
+   - Transfer record created: type=DISTRIBUTION, status=PENDING
+   - Device status remains unchanged
+      │
+      ▼
+[3. Transfer Approved]
+   (Transfers screen → Bulk Action: Approve Transfers)
+   - Device status → RECEIVED
+   - Device distribution_point_id set to the destination DP
+   - Transfer record deleted after completing
+      │
+      ▼
+[4. Distribution Point — Accept Devices]
+   (Distribution Points → View → Accept Devices button)
+   - Device status RECEIVED → ONLINE (or previous status)
+   - Device is now "at" the distribution point
+   - allocation_point_id cleared
+      │
+      ▼
+[5. Distribution Point — Send to Allocation Point]
+   (Distribution Points → View → Send to Allocation Point button)
+   - Transfer record created: type=ALLOCATION, status=COMPLETED
+   - Device status → RECEIVED
+   - Device allocation_point_id set to the selected AP
+   - distribution_point_id cleared
+      │
+      ▼
+[6. Allocation Point — Accept Devices]
+   (Allocation Points → View page — devices with RECEIVED status appear)
+   - No explicit "accept" needed — devices appear automatically.
+   - Officer may change status (ONLINE/OFFLINE/DAMAGED/etc.)
+      │
+      ▼
+[7. Data Entry — Dispatch]
+   (Data Entry → Assignment View → Dispatch button)
+   - Officer selects device(s) from the allocation point device table
+   - Fills in Receipt, Vehicle, Regime, Destination, Route, Driver, ETD, ETA, etc.
+   - DB records created: AssignToAgent + ConfirmedAffixed (status=PENDING) + DispatchLog
+   - iCloud trip (waybill) created via addRouteDeparture API
+   - device.allocation_point_id cleared
+      │
+      ▼
+[8. Confirmed Affixed — Pick for Affixing]
+   (Confirmed Affixed screen → Pick for Affixing row action or bulk action)
+   - Affixing officer physically attaches tracker to vehicle
+   - Records the affixing_date (defaults to now)
+   - Creates DeviceRetrieval record (status=NOT_RETRIEVED)
+   - Creates ConfirmedAffixLog record (status=AFFIXED)
+   - Deletes AssignToAgent and ConfirmedAffixed records
+      │
+      ▼
+[9. Monitoring — Device in Field]
+   (Monitoring screen — shows live overdue hours and overstay days)
+   - Table polls every 10 seconds
+   - Overdue hours counts from affixing_date
+   - Overstay days calculated from affixing_date / route threshold
+   - Officers may add notes via "Add Note" row action
+      │
+      ├─── [IF OVERSTAY] ────────────────────────────────────────────────────────┐
+      │                                                                          │
+      │   [9a. Device Retrievals — Generate Overstay Bill]                      │
+      │        (Overdue Bills row action)                                        │
+      │        - Invoice generated: overstay_days × route.base_usd_amount       │
+      │          × exchange_rate_gmd_usd                                         │
+      │        - payment_status → PP (Pending Payment)                          │
+      │        - Device cannot be retrieved until payment confirmed               │
+      │        │                                                                 │
+      │        ▼                                                                 │
+      │   [9b. Finance Approval OR Admin Waiver]                                │
+      │        Finance Officer: Approve Payment → payment_status = PD (Paid)    │
+      │        Super Admin: Admin Waiver → marks record as waived                │
+      │                                                                          │
+      └──────────────────────────────────────────────────────────────────────────┘
+      │
+      ▼
+[10. Device Retrievals — Retrieve Device]
+   (Device Retrievals → row action: Retrieve Device)
+   - Physical device is removed from vehicle
+   - If SAD transaction and last device on receipt: T1 Validation Reference required
+   - If overdue and non-privileged user: Receipt Number required
+   - device_retrievals.retrieval_status → RETRIEVED
+   - devices.status → RETRIEVED
+   - Observer syncs Monitoring table
+      │
+      ├─── [IF DEVICE RETURNED TO OUTSTATION] ──────────────────────────────────┐
+      │   (Device Retrievals → Return to Outstation row action)                 │
+      │   - Officer selects Distribution Point                                  │
+      │   - devices.status → PENDING                                            │
+      │   - devices.distribution_point_id → selected DP                         │
+      │   - device_retrievals archived (not deleted) — invoices preserved        │
+      │   - monitoring record deleted                                            │
+      │   - Device is back at Distribution Point with PENDING status            │
+      │   - Distribution Point officer uses "Accept Returned Device"            │
+      │     or "Reject Device(s)" to process it (see Section 5.4 / 5.5)        │
+      └──────────────────────────────────────────────────────────────────────────┘
+      │
+      ▼
+[11. Device back in Inventory / Allocation Point]
+   - Retrieval Officer may transfer device back to an AP or DP
+   - Device can be re-dispatched by repeating from Step 7
+   - Device may be marked DAMAGED, FIXED, LOST etc. at any point
+     via "Change Device Status" actions at DP or AP level
+```
+
+---
+
+### Key Status Definitions
+
+| Status | Meaning |
+|---|---|
+| `UNCONFIGURED` | Device entered but SIM not yet installed |
+| `CONFIGURED` | SIM installed; ready to deploy |
+| `ONLINE` | Active and GPS-reporting in the field or at an AP/DP |
+| `OFFLINE` | Not reporting GPS |
+| `DAMAGED` | Physical damage reported |
+| `FIXED` | Damage repaired |
+| `LOST` | Device cannot be located |
+| `RECEIVED` | In transit between locations (e.g. being transferred to DP or AP) |
+| `PENDING` | Returned from field, awaiting acceptance/rejection at a DP |
+| `RETRIEVED` | Physically retrieved from vehicle after field deployment |
+
+---
+
+### Role-Based Access Summary
+
+| Role | Main Access |
+|---|---|
+| **Super Admin** | Full access to all screens, all actions, system settings, users |
+| **Warehouse Manager** | Devices, Stores, Transfers, Other Items, Distribution Points, Allocation Points; can retrieve without payment receipt |
+| **Data Entry Officer** | Data Entry / Assignment View — New Receipt, Dispatch, View Receipts, Register Driver |
+| **Affixing Officer** | Confirmed Affixed — Pick for Affixing, Return Data |
+| **Retrieval Officer** | Device Retrievals — Retrieve Device, Return to Outstation; filtered by their `view_allocationpoint_*` permissions |
+| **Finance Officer** | Device Retrievals — only sees overstay records; Approve Payment action |
+
+---
+
+*End of UI Buttons, Forms & Flow Documentation.*

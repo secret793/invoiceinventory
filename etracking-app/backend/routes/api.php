@@ -25,6 +25,7 @@ $router->delete('/api/devices/{id}',      [\App\Controllers\DeviceController::cl
 
 // ── Store (Inventory) ─────────────────────────────────────────────────────────
 $router->get('/api/stores',              [\App\Controllers\StoreController::class, 'index'],       ['auth']);
+$router->get('/api/stores/stats',        [\App\Controllers\StoreController::class, 'stats'],       ['auth']);
 $router->post('/api/stores',             [\App\Controllers\StoreController::class, 'store'],       ['auth']);
 $router->post('/api/stores/bulk-status', [\App\Controllers\StoreController::class, 'bulkStatus'], ['auth']);
 $router->get('/api/stores/{id}',         [\App\Controllers\StoreController::class, 'show'],        ['auth']);
@@ -34,6 +35,7 @@ $router->delete('/api/stores/{id}',      [\App\Controllers\StoreController::clas
 
 // ── Other Items ───────────────────────────────────────────────────────────────
 $router->get('/api/other-items',              [\App\Controllers\OtherItemController::class, 'index'],       ['auth']);
+$router->get('/api/other-items/stats',        [\App\Controllers\OtherItemController::class, 'stats'],       ['auth']);
 $router->post('/api/other-items',             [\App\Controllers\OtherItemController::class, 'store'],       ['auth']);
 $router->post('/api/other-items/bulk-status', [\App\Controllers\OtherItemController::class, 'bulkStatus'], ['auth']);
 $router->put('/api/other-items/{id}',         [\App\Controllers\OtherItemController::class, 'update'],      ['auth']);
@@ -41,28 +43,42 @@ $router->patch('/api/other-items/{id}',       [\App\Controllers\OtherItemControl
 $router->delete('/api/other-items/{id}',      [\App\Controllers\OtherItemController::class, 'destroy'],     ['auth']);
 
 // ── Transfers ─────────────────────────────────────────────────────────────────
-$router->get('/api/transfers',              [\App\Controllers\TransferController::class, 'index'],       ['auth']);
-$router->post('/api/transfers',             [\App\Controllers\TransferController::class, 'store'],       ['auth']);
-$router->post('/api/transfers/bulk-cancel', [\App\Controllers\TransferController::class, 'bulkCancel'], ['auth']);
-$router->delete('/api/transfers/{id}',      [\App\Controllers\TransferController::class, 'destroy'],     ['auth']);
+$router->get('/api/transfers',                [\App\Controllers\TransferController::class, 'index'],            ['auth']);
+$router->post('/api/transfers',               [\App\Controllers\TransferController::class, 'store'],            ['auth']);
+$router->post('/api/transfers/bulk-cancel',   [\App\Controllers\TransferController::class, 'bulkCancel'],       ['auth']);
+$router->post('/api/transfers/bulk-approve',  [\App\Controllers\TransferController::class, 'bulkApprove'],      ['auth']);
+$router->post('/api/transfers/bulk-to-dp',    [\App\Controllers\TransferController::class, 'bulkTransferToDP'], ['auth']);
+$router->delete('/api/transfers/{id}',        [\App\Controllers\TransferController::class, 'destroy'],          ['auth']);
 
 // ── Distribution Points ───────────────────────────────────────────────────────
-$router->get('/api/distribution-points',           [\App\Controllers\DistributionPointController::class, 'index'],   ['auth']);
-$router->post('/api/distribution-points',          [\App\Controllers\DistributionPointController::class, 'store'],   ['auth']);
-$router->get('/api/distribution-points/{id}',      [\App\Controllers\DistributionPointController::class, 'show'],    ['auth']);
-$router->get('/api/distribution-points/{id}/devices', [\App\Controllers\DistributionPointController::class, 'devices'], ['auth']);
-$router->put('/api/distribution-points/{id}',      [\App\Controllers\DistributionPointController::class, 'update'],  ['auth']);
-$router->patch('/api/distribution-points/{id}',    [\App\Controllers\DistributionPointController::class, 'update'],  ['auth']);
-$router->delete('/api/distribution-points/{id}',   [\App\Controllers\DistributionPointController::class, 'destroy'], ['auth']);
+$router->get('/api/distribution-points',                         [\App\Controllers\DistributionPointController::class, 'index'],             ['auth']);
+$router->post('/api/distribution-points',                        [\App\Controllers\DistributionPointController::class, 'store'],             ['auth']);
+$router->get('/api/distribution-points/{id}',                    [\App\Controllers\DistributionPointController::class, 'show'],              ['auth']);
+$router->get('/api/distribution-points/{id}/devices',            [\App\Controllers\DistributionPointController::class, 'devices'],           ['auth']);
+$router->get('/api/distribution-points/{id}/status-counts',      [\App\Controllers\DistributionPointController::class, 'statusCounts'],      ['auth']);
+$router->post('/api/distribution-points/{id}/accept-devices',    [\App\Controllers\DistributionPointController::class, 'acceptDevices'],     ['auth']);
+$router->post('/api/distribution-points/{id}/send-to-ap',        [\App\Controllers\DistributionPointController::class, 'sendToAllocationPoint'], ['auth']);
+$router->post('/api/distribution-points/{id}/return-inventory',  [\App\Controllers\DistributionPointController::class, 'returnToInventory'], ['auth']);
+$router->post('/api/distribution-points/{id}/accept-returned',   [\App\Controllers\DistributionPointController::class, 'acceptReturned'],    ['auth']);
+$router->post('/api/distribution-points/{id}/reject-devices',    [\App\Controllers\DistributionPointController::class, 'rejectDevices'],     ['auth']);
+$router->post('/api/distribution-points/{id}/change-status',     [\App\Controllers\DistributionPointController::class, 'changeStatus'],      ['auth']);
+$router->post('/api/distribution-points/{id}/send-to-another-dp',[\App\Controllers\DistributionPointController::class, 'sendToAnotherDP'],  ['auth']);
+$router->put('/api/distribution-points/{id}',                    [\App\Controllers\DistributionPointController::class, 'update'],            ['auth']);
+$router->patch('/api/distribution-points/{id}',                  [\App\Controllers\DistributionPointController::class, 'update'],            ['auth']);
+$router->delete('/api/distribution-points/{id}',                 [\App\Controllers\DistributionPointController::class, 'destroy'],           ['auth']);
 
 // ── Allocation Points ─────────────────────────────────────────────────────────
-$router->get('/api/allocation-points',              [\App\Controllers\AllocationPointController::class, 'index'],   ['auth']);
-$router->post('/api/allocation-points',             [\App\Controllers\AllocationPointController::class, 'store'],   ['auth']);
-$router->get('/api/allocation-points/{id}',         [\App\Controllers\AllocationPointController::class, 'show'],    ['auth']);
-$router->get('/api/allocation-points/{id}/devices', [\App\Controllers\AllocationPointController::class, 'devices'], ['auth']);
-$router->put('/api/allocation-points/{id}',         [\App\Controllers\AllocationPointController::class, 'update'],  ['auth']);
-$router->patch('/api/allocation-points/{id}',       [\App\Controllers\AllocationPointController::class, 'update'],  ['auth']);
-$router->delete('/api/allocation-points/{id}',      [\App\Controllers\AllocationPointController::class, 'destroy'], ['auth']);
+$router->get('/api/allocation-points',                        [\App\Controllers\AllocationPointController::class, 'index'],           ['auth']);
+$router->post('/api/allocation-points',                       [\App\Controllers\AllocationPointController::class, 'store'],           ['auth']);
+$router->get('/api/allocation-points/{id}',                   [\App\Controllers\AllocationPointController::class, 'show'],            ['auth']);
+$router->get('/api/allocation-points/{id}/devices',           [\App\Controllers\AllocationPointController::class, 'devices'],         ['auth']);
+$router->get('/api/allocation-points/{id}/status-counts',     [\App\Controllers\AllocationPointController::class, 'statusCounts'],    ['auth']);
+$router->post('/api/allocation-points/{id}/send-to-ap',       [\App\Controllers\AllocationPointController::class, 'sendToAP'],        ['auth']);
+$router->post('/api/allocation-points/{id}/return-inventory', [\App\Controllers\AllocationPointController::class, 'returnToInventory'], ['auth']);
+$router->post('/api/allocation-points/{id}/change-status',    [\App\Controllers\AllocationPointController::class, 'changeStatus'],    ['auth']);
+$router->put('/api/allocation-points/{id}',                   [\App\Controllers\AllocationPointController::class, 'update'],          ['auth']);
+$router->patch('/api/allocation-points/{id}',                 [\App\Controllers\AllocationPointController::class, 'update'],          ['auth']);
+$router->delete('/api/allocation-points/{id}',                [\App\Controllers\AllocationPointController::class, 'destroy'],         ['auth']);
 
 // ── Data Entry ────────────────────────────────────────────────────────────────
 $router->get('/api/data-entry',                          [\App\Controllers\DataEntryController::class, 'index'],        ['auth']);
@@ -77,28 +93,33 @@ $router->get('/api/data-entry/{id}/dispatch-logs',       [\App\Controllers\DataE
 $router->get('/api/data-entry/{id}/receipts',            [\App\Controllers\DataEntryController::class, 'receipts'],     ['auth']);
 
 // ── Confirmed Affixed ─────────────────────────────────────────────────────────
-$router->get('/api/confirmed-affixed',                  [\App\Controllers\ConfirmedAffixedController::class, 'index'],       ['auth']);
-$router->post('/api/confirmed-affixed',                 [\App\Controllers\ConfirmedAffixedController::class, 'store'],       ['auth']);
-$router->get('/api/confirmed-affixed/report',           [\App\Controllers\ConfirmedAffixedController::class, 'report'],      ['auth']);
-$router->get('/api/confirmed-affixed/export',           [\App\Controllers\ConfirmedAffixedController::class, 'exportReport'], ['auth']);
-$router->get('/api/confirmed-affixed/{id}',             [\App\Controllers\ConfirmedAffixedController::class, 'show'],        ['auth']);
+$router->get('/api/confirmed-affixed',                  [\App\Controllers\ConfirmedAffixedController::class, 'index'],          ['auth']);
+$router->post('/api/confirmed-affixed',                 [\App\Controllers\ConfirmedAffixedController::class, 'store'],          ['auth']);
+$router->get('/api/confirmed-affixed/report',           [\App\Controllers\ConfirmedAffixedController::class, 'report'],         ['auth']);
+$router->get('/api/confirmed-affixed/export',           [\App\Controllers\ConfirmedAffixedController::class, 'exportReport'],   ['auth']);
+$router->get('/api/confirmed-affixed/{id}',             [\App\Controllers\ConfirmedAffixedController::class, 'show'],           ['auth']);
 $router->post('/api/confirmed-affixed/{id}/pick',       [\App\Controllers\ConfirmedAffixedController::class, 'pickForAffixing'], ['auth']);
-$router->post('/api/confirmed-affixed/{id}/return',     [\App\Controllers\ConfirmedAffixedController::class, 'returnData'],  ['auth']);
+$router->post('/api/confirmed-affixed/{id}/return',     [\App\Controllers\ConfirmedAffixedController::class, 'returnData'],     ['auth']);
 
 // ── Device Retrievals ─────────────────────────────────────────────────────────
-$router->get('/api/device-retrievals',                         [\App\Controllers\DeviceRetrievalController::class, 'index'],          ['auth']);
-$router->post('/api/device-retrievals',                        [\App\Controllers\DeviceRetrievalController::class, 'store'],          ['auth']);
-$router->get('/api/device-retrievals/report',                  [\App\Controllers\DeviceRetrievalController::class, 'report'],         ['auth']);
-$router->get('/api/device-retrievals/export',                  [\App\Controllers\DeviceRetrievalController::class, 'exportReport'],   ['auth']);
-$router->get('/api/device-retrievals/{id}',                    [\App\Controllers\DeviceRetrievalController::class, 'show'],           ['auth']);
-$router->put('/api/device-retrievals/{id}',                    [\App\Controllers\DeviceRetrievalController::class, 'update'],         ['auth']);
-$router->patch('/api/device-retrievals/{id}',                  [\App\Controllers\DeviceRetrievalController::class, 'update'],         ['auth']);
-$router->delete('/api/device-retrievals/{id}',                 [\App\Controllers\DeviceRetrievalController::class, 'destroy'],        ['auth']);
-$router->post('/api/device-retrievals/{id}/generate-invoice',  [\App\Controllers\DeviceRetrievalController::class, 'generateInvoice'], ['auth']);
-$router->get('/api/device-retrievals/{id}/invoice',            [\App\Controllers\DeviceRetrievalController::class, 'invoice'],        ['auth']);
+$router->get('/api/device-retrievals',                          [\App\Controllers\DeviceRetrievalController::class, 'index'],           ['auth']);
+$router->post('/api/device-retrievals',                         [\App\Controllers\DeviceRetrievalController::class, 'store'],           ['auth']);
+$router->get('/api/device-retrievals/report',                   [\App\Controllers\DeviceRetrievalController::class, 'report'],          ['auth']);
+$router->get('/api/device-retrievals/export',                   [\App\Controllers\DeviceRetrievalController::class, 'exportReport'],    ['auth']);
+$router->get('/api/device-retrievals/{id}',                     [\App\Controllers\DeviceRetrievalController::class, 'show'],            ['auth']);
+$router->put('/api/device-retrievals/{id}',                     [\App\Controllers\DeviceRetrievalController::class, 'update'],          ['auth']);
+$router->patch('/api/device-retrievals/{id}',                   [\App\Controllers\DeviceRetrievalController::class, 'update'],          ['auth']);
+$router->delete('/api/device-retrievals/{id}',                  [\App\Controllers\DeviceRetrievalController::class, 'destroy'],         ['auth']);
+$router->post('/api/device-retrievals/{id}/generate-invoice',   [\App\Controllers\DeviceRetrievalController::class, 'generateInvoice'], ['auth']);
+$router->get('/api/device-retrievals/{id}/invoice',             [\App\Controllers\DeviceRetrievalController::class, 'invoice'],         ['auth']);
+$router->post('/api/device-retrievals/{id}/retrieve',           [\App\Controllers\DeviceRetrievalController::class, 'retrieve'],        ['auth']);
+$router->post('/api/device-retrievals/{id}/return-outstation',  [\App\Controllers\DeviceRetrievalController::class, 'returnToOutstation'], ['auth']);
+$router->post('/api/device-retrievals/{id}/waiver',             [\App\Controllers\DeviceRetrievalController::class, 'waiver'],           ['auth']);
+$router->post('/api/device-retrievals/{id}/approve-payment',    [\App\Controllers\DeviceRetrievalController::class, 'approvePayment'],  ['auth']);
 
 // ── Monitoring ────────────────────────────────────────────────────────────────
-$router->get('/api/monitoring', [\App\Controllers\MonitoringController::class, 'index'], ['auth']);
+$router->get('/api/monitoring',              [\App\Controllers\MonitoringController::class, 'index'],   ['auth']);
+$router->post('/api/monitoring/{id}/add-note', [\App\Controllers\MonitoringController::class, 'addNote'], ['auth']);
 
 // ── Notifications ─────────────────────────────────────────────────────────────
 $router->get('/api/notifications',                 [\App\Controllers\NotificationController::class, 'index'],       ['auth']);
@@ -152,8 +173,8 @@ $router->patch('/api/destinations/{id}',  [\App\Controllers\DestinationControlle
 $router->delete('/api/destinations/{id}', [\App\Controllers\DestinationController::class, 'destroy'], ['auth']);
 
 // ── System Settings ───────────────────────────────────────────────────────────
-$router->get('/api/system-settings',      [\App\Controllers\SystemSettingController::class, 'index'],  ['auth']);
-$router->put('/api/system-settings/{id}', [\App\Controllers\SystemSettingController::class, 'update'], ['auth']);
+$router->get('/api/system-settings',        [\App\Controllers\SystemSettingController::class, 'index'],  ['auth']);
+$router->put('/api/system-settings/{id}',   [\App\Controllers\SystemSettingController::class, 'update'], ['auth']);
 $router->patch('/api/system-settings/{id}', [\App\Controllers\SystemSettingController::class, 'update'], ['auth']);
 
 // ── Users ─────────────────────────────────────────────────────────────────────
@@ -174,14 +195,14 @@ $router->delete('/api/roles/{id}', [\App\Controllers\RoleController::class, 'des
 $router->get('/api/permissions',   [\App\Controllers\PermissionController::class, 'index'], ['auth']);
 
 // ── Reports (CSV download) ────────────────────────────────────────────────────
-$router->get('/api/reports/dispatch/{id}',           [\App\Controllers\ReportController::class, 'dispatchReport'],       ['auth']);
-$router->get('/api/reports/confirmed-affix',         [\App\Controllers\ReportController::class, 'confirmedAffixReport'], ['auth']);
-$router->get('/api/reports/device-retrieval',        [\App\Controllers\ReportController::class, 'deviceRetrievalReport'], ['auth']);
-$router->get('/api/reports/device-retrieval-2',      [\App\Controllers\ReportController::class, 'deviceRetrievalReport2'], ['auth']);
-$router->get('/api/reports/receipts',                [\App\Controllers\ReportController::class, 'receipts'],             ['auth']);
-$router->get('/api/reports/generated-receipts',      [\App\Controllers\ReportController::class, 'generatedReceipts'],    ['auth']);
-$router->get('/api/reports/dispatch-finance-records',[\App\Controllers\ReportController::class, 'dispatchFinanceRecords'], ['auth']);
-$router->get('/api/reports/overstay-receipts',       [\App\Controllers\ReportController::class, 'overstayReceipts'],     ['auth']);
-$router->get('/api/reports/overstay-invoices',       [\App\Controllers\ReportController::class, 'overstayInvoices'],     ['auth']);
-$router->get('/api/reports/overstay-devices',        [\App\Controllers\ReportController::class, 'overstayDevices'],      ['auth']);
-$router->get('/api/reports/overstay-devices-pdf',    [\App\Controllers\ReportController::class, 'overstayDevicesPdf'],   ['auth']);
+$router->get('/api/reports/dispatch/{id}',            [\App\Controllers\ReportController::class, 'dispatchReport'],        ['auth']);
+$router->get('/api/reports/confirmed-affix',          [\App\Controllers\ReportController::class, 'confirmedAffixReport'],  ['auth']);
+$router->get('/api/reports/device-retrieval',         [\App\Controllers\ReportController::class, 'deviceRetrievalReport'], ['auth']);
+$router->get('/api/reports/device-retrieval-2',       [\App\Controllers\ReportController::class, 'deviceRetrievalReport2'], ['auth']);
+$router->get('/api/reports/receipts',                 [\App\Controllers\ReportController::class, 'receipts'],              ['auth']);
+$router->get('/api/reports/generated-receipts',       [\App\Controllers\ReportController::class, 'generatedReceipts'],     ['auth']);
+$router->get('/api/reports/dispatch-finance-records', [\App\Controllers\ReportController::class, 'dispatchFinanceRecords'], ['auth']);
+$router->get('/api/reports/overstay-receipts',        [\App\Controllers\ReportController::class, 'overstayReceipts'],      ['auth']);
+$router->get('/api/reports/overstay-invoices',        [\App\Controllers\ReportController::class, 'overstayInvoices'],      ['auth']);
+$router->get('/api/reports/overstay-devices',         [\App\Controllers\ReportController::class, 'overstayDevices'],       ['auth']);
+$router->get('/api/reports/overstay-devices-pdf',     [\App\Controllers\ReportController::class, 'overstayDevicesPdf'],    ['auth']);
