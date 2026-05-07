@@ -40,7 +40,7 @@ class Invoice extends BaseModel
             'penalty_amount'      => $calc['overstay_amount'],
             'total_amount'        => $calc['overstay_amount'],
             'exchange_rate'       => 1,
-            'status'              => 'PD',
+            'status'              => 'PENDING',
             'notes'               => null,
         ];
     }
