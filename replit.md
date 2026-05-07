@@ -77,9 +77,18 @@ etracking-app/
 - Transfer bulk-approve deletes records after completing (per spec § 3 Approve Transfers)
 - Return to Outstation archives the device_retrievals row (`is_archived = true`) — does NOT delete it
 - `transfers` table uses `from_distribution_point_id` (NOT `original_distribution_point_id` — that column does not exist)
-- `device_retrievals` has `is_archived` + `archived_at` columns (added via ALTER TABLE; documented in schema)
+- `device_retrievals` has `is_archived` + `archived_at` + `archive_reason` + `distribution_point_id` columns
 - DataEntryDetailPage receipts load from `/receipts?allocation_point_id=X` (not via data-entry assignment ID)
 - DataEntryDetailPage dispatch POSTs to `/confirmed-affixed` per device with `regime`/`destination` as name strings
+- Overstay: grace period = 1 day short route / 2 days long route; rate = GMD 1,000/day flat (NOT USD exchange rate)
+- `waiver_history` table tracks Super Admin waivers (isWaived() = waiver_history record exists for retrieval_id)
+- `device_retrieval_logs` table tracks RETRIEVED / RETURNED_OUTSTATION audit events
+- `invoices` table has extra columns: reference_number, reference_date, regime, consignee, sad_number, penalty_amount, total_amount, approved_by/at, waived_by/at, finance_notes, receipt_number
+- Waiver resets overstay_days=0, overstay_amount=0, payment_status=WAIVED on retrieval + sets invoice status=WAIVED
+- Finance Approval: receipt_number required; sets payment_status=PD, finance_approval_date, finance_approved_by
+- Download Invoice: only visible when payment_status=PD AND finance_approval_date IS NOT NULL (generates HTML)
+- Finance Officer sees only records with overstay_days >= 2 (enforced server-side via `finance_only` filter)
+- RetrievalsPage polls every 10s via `useRetrievals` hook (silentFetch with paramsRef to avoid stale closure)
 
 ## Pointers
 - API routes: `etracking-app/backend/routes/api.php`
