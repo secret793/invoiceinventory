@@ -105,20 +105,23 @@ $router->post('/api/confirmed-affixed/{id}/pick',       [\App\Controllers\Confir
 $router->post('/api/confirmed-affixed/{id}/return',     [\App\Controllers\ConfirmedAffixedController::class, 'returnData'],      ['auth']);
 
 // ── Device Retrievals ─────────────────────────────────────────────────────────
-$router->get('/api/device-retrievals',                          [\App\Controllers\DeviceRetrievalController::class, 'index'],           ['auth']);
-$router->post('/api/device-retrievals',                         [\App\Controllers\DeviceRetrievalController::class, 'store'],           ['auth']);
-$router->get('/api/device-retrievals/report',                   [\App\Controllers\DeviceRetrievalController::class, 'report'],          ['auth']);
-$router->get('/api/device-retrievals/export',                   [\App\Controllers\DeviceRetrievalController::class, 'exportReport'],    ['auth']);
-$router->get('/api/device-retrievals/{id}',                     [\App\Controllers\DeviceRetrievalController::class, 'show'],            ['auth']);
-$router->put('/api/device-retrievals/{id}',                     [\App\Controllers\DeviceRetrievalController::class, 'update'],          ['auth']);
-$router->patch('/api/device-retrievals/{id}',                   [\App\Controllers\DeviceRetrievalController::class, 'update'],          ['auth']);
-$router->delete('/api/device-retrievals/{id}',                  [\App\Controllers\DeviceRetrievalController::class, 'destroy'],         ['auth']);
-$router->post('/api/device-retrievals/{id}/generate-invoice',   [\App\Controllers\DeviceRetrievalController::class, 'generateInvoice'], ['auth']);
-$router->get('/api/device-retrievals/{id}/invoice',             [\App\Controllers\DeviceRetrievalController::class, 'invoice'],         ['auth']);
-$router->post('/api/device-retrievals/{id}/retrieve',           [\App\Controllers\DeviceRetrievalController::class, 'retrieve'],        ['auth']);
-$router->post('/api/device-retrievals/{id}/return-outstation',  [\App\Controllers\DeviceRetrievalController::class, 'returnToOutstation'], ['auth']);
-$router->post('/api/device-retrievals/{id}/waiver',             [\App\Controllers\DeviceRetrievalController::class, 'waiver'],          ['auth']);
-$router->post('/api/device-retrievals/{id}/approve-payment',    [\App\Controllers\DeviceRetrievalController::class, 'approvePayment'],  ['auth']);
+$router->get('/api/device-retrievals',                               [\App\Controllers\DeviceRetrievalController::class, 'index'],            ['auth']);
+$router->post('/api/device-retrievals',                              [\App\Controllers\DeviceRetrievalController::class, 'store'],            ['auth']);
+$router->get('/api/device-retrievals/report',                        [\App\Controllers\DeviceRetrievalController::class, 'report'],           ['auth']);
+$router->get('/api/device-retrievals/export',                        [\App\Controllers\DeviceRetrievalController::class, 'exportReport'],     ['auth']);
+$router->get('/api/device-retrievals/overstay-devices',              [\App\Controllers\DeviceRetrievalController::class, 'overstayDevices'],  ['auth']);
+$router->get('/api/device-retrievals/{id}',                          [\App\Controllers\DeviceRetrievalController::class, 'show'],             ['auth']);
+$router->put('/api/device-retrievals/{id}',                          [\App\Controllers\DeviceRetrievalController::class, 'update'],           ['auth']);
+$router->patch('/api/device-retrievals/{id}',                        [\App\Controllers\DeviceRetrievalController::class, 'update'],           ['auth']);
+$router->delete('/api/device-retrievals/{id}',                       [\App\Controllers\DeviceRetrievalController::class, 'destroy'],          ['auth']);
+$router->post('/api/device-retrievals/{id}/generate-invoice',        [\App\Controllers\DeviceRetrievalController::class, 'generateInvoice'],  ['auth']);
+$router->get('/api/device-retrievals/{id}/invoice',                  [\App\Controllers\DeviceRetrievalController::class, 'invoice'],          ['auth']);
+$router->get('/api/device-retrievals/{id}/download-invoice',         [\App\Controllers\DeviceRetrievalController::class, 'downloadInvoice'],  ['auth']);
+$router->post('/api/device-retrievals/{id}/retrieve',                [\App\Controllers\DeviceRetrievalController::class, 'retrieve'],         ['auth']);
+$router->post('/api/device-retrievals/{id}/return-outstation',       [\App\Controllers\DeviceRetrievalController::class, 'returnToOutstation'],['auth']);
+$router->post('/api/device-retrievals/{id}/waiver',                  [\App\Controllers\DeviceRetrievalController::class, 'waiver'],           ['auth']);
+$router->post('/api/device-retrievals/{id}/approve-payment',         [\App\Controllers\DeviceRetrievalController::class, 'approvePayment'],   ['auth']);
+$router->post('/api/device-retrievals/{id}/manual-overstay',         [\App\Controllers\DeviceRetrievalController::class, 'manualOverstayDays'],['auth']);
 
 // ── Monitoring ────────────────────────────────────────────────────────────────
 $router->get('/api/monitoring',                [\App\Controllers\MonitoringController::class, 'index'],   ['auth']);
