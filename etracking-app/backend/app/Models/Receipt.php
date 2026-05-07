@@ -18,7 +18,7 @@ class Receipt extends BaseModel
         if (!empty($filters['to']))   { $where[] = 'r.date <= ?'; $params[] = $filters['to']   . ' 23:59:59'; }
         if (!empty($filters['search'])) {
             $s = '%' . $filters['search'] . '%';
-            $where[] = '(r.receipt_number LIKE ? OR r.sad_number LIKE ? OR r.agent_name LIKE ?)';
+            $where[] = '(r.receipt_number ILIKE ? OR r.sad_number ILIKE ? OR r.agent_name ILIKE ?)';
             array_push($params, $s, $s, $s);
         }
 
@@ -30,5 +30,15 @@ class Receipt extends BaseModel
              LEFT JOIN long_routes lr ON r.long_route_id = lr.id',
             'r.date DESC'
         );
+    }
+
+    public static function isLastDeviceForReceipt(int $receiptId, int $currentRetrievalId): bool
+    {
+        $row = Database::queryOne(
+            "SELECT COUNT(*) AS cnt FROM device_retrievals
+             WHERE receipt_id = ? AND retrieval_status != 'RETRIEVED' AND id != ?",
+            [$receiptId, $currentRetrievalId]
+        );
+        return ((int)($row['cnt'] ?? 1)) === 0;
     }
 }
