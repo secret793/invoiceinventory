@@ -531,3 +531,51 @@ INSERT INTO confirmed_affixeds (device_id, allocation_point_id, boe, sad_number,
         '2024-05-15', 'Guinea Cargo Express', '+220-9001122', 'CONFIRMED', NOW() - INTERVAL '5 days'
     )
 ON CONFLICT DO NOTHING;
+
+-- ── Schema additions (v2 — Device Retrievals module) ─────
+-- Added 2026-05
+
+ALTER TABLE device_retrievals ADD COLUMN IF NOT EXISTS archive_reason        VARCHAR(500);
+ALTER TABLE device_retrievals ADD COLUMN IF NOT EXISTS distribution_point_id BIGINT;
+
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS reference_number VARCHAR(100);
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS reference_date   DATE;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS regime           VARCHAR(100);
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS consignee        VARCHAR(255);
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS agent            VARCHAR(255);
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS customs_post     VARCHAR(255);
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS sad_number       VARCHAR(100);
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS penalty_amount   DECIMAL(12,2) DEFAULT 0;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS total_amount     DECIMAL(12,2) DEFAULT 0;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS approved_by      BIGINT;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS approved_at      TIMESTAMP;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS waived_by        BIGINT;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS waived_at        TIMESTAMP;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS finance_notes    TEXT;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS receipt_number   VARCHAR(100);
+
+-- ── Waiver History ────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS waiver_history (
+    id                     BIGSERIAL PRIMARY KEY,
+    device_retrieval_id    BIGINT REFERENCES device_retrievals(id) ON DELETE SET NULL,
+    invoice_id             BIGINT REFERENCES invoices(id) ON DELETE SET NULL,
+    admin_user_id          BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    reason                 TEXT NOT NULL,
+    original_overstay_days INT DEFAULT 0,
+    original_amount        DECIMAL(12,2) DEFAULT 0,
+    created_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ── Device Retrieval Audit Log ────────────────────────────
+CREATE TABLE IF NOT EXISTS device_retrieval_logs (
+    id                  BIGSERIAL PRIMARY KEY,
+    device_id           BIGINT,
+    device_retrieval_id BIGINT,
+    boe                 VARCHAR(100),
+    action_type         VARCHAR(50),
+    performed_by        BIGINT,
+    performed_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    notes               TEXT,
+    created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
