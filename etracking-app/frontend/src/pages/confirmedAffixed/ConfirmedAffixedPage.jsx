@@ -29,6 +29,12 @@ export default function ConfirmedAffixedPage() {
   const [bulkPickDate, setBulkPickDate]   = useState('');
   const [bulkLoading, setBulkLoading]     = useState(false);
 
+  const [reportOpen,    setReportOpen]    = useState(false);
+  const [reportList,    setReportList]    = useState([]);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportFilters, setReportFilters] = useState({ from: '', to: '', allocation_point_id: '', status: '' });
+  const [apList,        setApList]        = useState([]);
+
   const load = useCallback(async (p = params) => {
     setLoading(true);
     try {
@@ -37,10 +43,32 @@ export default function ConfirmedAffixedPage() {
     } catch { } finally { setLoading(false); }
   }, [params]);
 
+  const runReport = async (f = reportFilters) => {
+    setReportLoading(true);
+    try {
+      const { data } = await api.get('/confirmed-affixed/report', { params: f });
+      setReportList(Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []));
+    } catch (e) { notify.error(e.message); }
+    finally { setReportLoading(false); }
+  };
+
+  const openReport = () => { setReportOpen(true); runReport(); };
+
+  const exportUrl = () => {
+    const p = new URLSearchParams();
+    if (reportFilters.from)                p.set('from',                reportFilters.from);
+    if (reportFilters.to)                  p.set('to',                  reportFilters.to);
+    if (reportFilters.allocation_point_id) p.set('allocation_point_id', reportFilters.allocation_point_id);
+    if (reportFilters.status)              p.set('status',              reportFilters.status);
+    return `/api/confirmed-affixed/export?${p.toString()}`;
+  };
+
   useEffect(() => {
     load();
     const defaultDate = new Date().toISOString().slice(0, 16);
     setPickDate(defaultDate); setBulkPickDate(defaultDate);
+    api.get('/allocation-points', { params: { per_page: 100 } })
+      .then(r => setApList(r.data?.data || [])).catch(() => {});
   }, []);
 
   const handlePick = async () => {
@@ -120,9 +148,9 @@ export default function ConfirmedAffixedPage() {
                 Pick Selected ({selected.length})
               </button>
             )}
-            <a href="/api/confirmed-affixed/export" target="_blank" className="btn-secondary">
-              View Report / Export
-            </a>
+            <button onClick={openReport} className="btn-secondary">
+              View Report
+            </button>
           </div>
         } />
 
@@ -199,6 +227,101 @@ export default function ConfirmedAffixedPage() {
           <p className="text-xs text-gray-500">
             Records already affixed (status = AFFIXED) will be skipped automatically.
           </p>
+        </div>
+      </Modal>
+
+      {/* View Report Modal */}
+      <Modal isOpen={reportOpen} onClose={() => setReportOpen(false)} title="Confirmed Dispatch Report" size="full"
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <a href={exportUrl()} target="_blank" rel="noreferrer" className="btn-success btn-sm">
+              Export to CSV
+            </a>
+            <button onClick={() => setReportOpen(false)} className="btn-secondary">Close</button>
+          </div>
+        }>
+        <div className="space-y-4">
+          {/* Filters */}
+          <div className="flex flex-wrap gap-3 items-end p-3 bg-gray-50 rounded-lg">
+            <div>
+              <label className="label text-xs">From Date</label>
+              <input type="date" className="input input-sm"
+                value={reportFilters.from}
+                onChange={e => setReportFilters(f => ({ ...f, from: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label text-xs">To Date</label>
+              <input type="date" className="input input-sm"
+                value={reportFilters.to}
+                onChange={e => setReportFilters(f => ({ ...f, to: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label text-xs">Allocation Point</label>
+              <select className="input input-sm w-44"
+                value={reportFilters.allocation_point_id}
+                onChange={e => setReportFilters(f => ({ ...f, allocation_point_id: e.target.value }))}>
+                <option value="">All Stations</option>
+                {apList.map(ap => <option key={ap.id} value={ap.id}>{ap.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label text-xs">Status</label>
+              <select className="input input-sm w-36"
+                value={reportFilters.status}
+                onChange={e => setReportFilters(f => ({ ...f, status: e.target.value }))}>
+                <option value="">All Statuses</option>
+                <option value="PENDING">Pending</option>
+                <option value="AFFIXED">Affixed</option>
+                <option value="RETURNED">Returned</option>
+              </select>
+            </div>
+            <button onClick={() => runReport(reportFilters)} className="btn-primary btn-sm">Apply</button>
+            <button onClick={() => {
+              const reset = { from: '', to: '', allocation_point_id: '', status: '' };
+              setReportFilters(reset); runReport(reset);
+            }} className="btn-secondary btn-sm">Reset</button>
+          </div>
+
+          {/* Results */}
+          {reportLoading ? (
+            <div className="py-8 text-center text-gray-400">Loading report…</div>
+          ) : reportList.length === 0 ? (
+            <div className="py-8 text-center text-gray-400">No records for selected filters.</div>
+          ) : (
+            <div className="overflow-x-auto max-h-[60vh]">
+              <p className="text-xs text-gray-500 mb-2">{reportList.length} record(s)</p>
+              <table className="min-w-full text-xs">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    {['Date', 'Device ID', 'BOE', 'Vehicle', 'Regime', 'Route', 'Long Route',
+                      'Destination', 'Manifest Date', 'Agency', 'Agent Contact', 'Truck No.', 'Driver', 'Status'].map(h => (
+                      <th key={h} className="px-2 py-2 text-left font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {reportList.map((r, i) => (
+                    <tr key={r.id ?? i} className="hover:bg-gray-50">
+                      <td className="px-2 py-1.5 whitespace-nowrap">{r.date ? new Date(r.date).toLocaleDateString() : '—'}</td>
+                      <td className="px-2 py-1.5 font-mono font-semibold" style={{ color: '#1E2D7A' }}>{r.device_identifier || r.device_id || '—'}</td>
+                      <td className="px-2 py-1.5 font-mono">{r.boe || '—'}</td>
+                      <td className="px-2 py-1.5">{r.vehicle_number || '—'}</td>
+                      <td className="px-2 py-1.5">{r.regime || '—'}</td>
+                      <td className="px-2 py-1.5">{r.route || '—'}</td>
+                      <td className="px-2 py-1.5">{r.long_route || '—'}</td>
+                      <td className="px-2 py-1.5">{r.destination || r.destination_name || '—'}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">{r.manifest_date ? new Date(r.manifest_date).toLocaleDateString() : <span className="text-amber-500">Pending</span>}</td>
+                      <td className="px-2 py-1.5">{r.agency || '—'}</td>
+                      <td className="px-2 py-1.5">{r.agent_contact || '—'}</td>
+                      <td className="px-2 py-1.5">{r.truck_number || '—'}</td>
+                      <td className="px-2 py-1.5">{r.driver_name || '—'}</td>
+                      <td className="px-2 py-1.5"><StatusBadge status={r.status || 'PENDING'} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </Modal>
 

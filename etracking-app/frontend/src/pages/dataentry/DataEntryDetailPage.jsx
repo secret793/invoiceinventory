@@ -41,6 +41,11 @@ export default function DataEntryDetailPage() {
     route_id: '', long_route_id: '', quantity: 1, destination_id: '',
   });
 
+  const [showDispatchReport, setShowDispatchReport]     = useState(false);
+  const [dispatchReportList, setDispatchReportList]     = useState([]);
+  const [dispatchReportLoading, setDispatchReportLoading] = useState(false);
+  const [dispatchReportFilters, setDispatchReportFilters] = useState({ search: '', from: '', to: '' });
+
   const [showDispatch, setShowDispatch]   = useState(false);
   const [dispatchSaving, setDispatchSaving] = useState(false);
   const [dispatchForm, setDispatchForm]   = useState({
@@ -50,6 +55,25 @@ export default function DataEntryDetailPage() {
     etd: '', eta: '', completion_rules: '1', container: '', consignee: '', goods: '', carrier: '',
     cargo_description: '', waybill_name: '',
   });
+
+  const runDispatchReport = async (f = dispatchReportFilters) => {
+    setDispatchReportLoading(true);
+    try {
+      const { data } = await api.get(`/reports/dispatch/${id}`, { params: f });
+      setDispatchReportList(Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []));
+    } catch (e) { notify.error(e.message); }
+    finally { setDispatchReportLoading(false); }
+  };
+
+  const openDispatchReport = () => { setShowDispatchReport(true); runDispatchReport(); };
+
+  const dispatchReportExportUrl = () => {
+    const p = new URLSearchParams();
+    if (dispatchReportFilters.search) p.set('search', dispatchReportFilters.search);
+    if (dispatchReportFilters.from)   p.set('from',   dispatchReportFilters.from);
+    if (dispatchReportFilters.to)     p.set('to',     dispatchReportFilters.to);
+    return `/api/reports/dispatch/${id}?${p.toString()}&export=1`;
+  };
 
   const load = () => {
     setLoading(true);
@@ -198,9 +222,9 @@ export default function DataEntryDetailPage() {
             <button onClick={() => setShowReceipts(true)} className="btn-primary">
               📋 Receipts
             </button>
-            <a href={`/api/reports/dispatch/${id}`} target="_blank" className="btn-success">
+            <button onClick={openDispatchReport} className="btn-success">
               📊 Dispatch Report
-            </a>
+            </button>
           </div>
         } />
 
@@ -506,6 +530,85 @@ export default function DataEntryDetailPage() {
               onChange={e => setDispatchForm(f => ({ ...f, waybill_name: e.target.value }))} />
           </div>
         </form>
+      </Modal>
+
+      {/* Dispatch Report Modal */}
+      <Modal isOpen={showDispatchReport} onClose={() => setShowDispatchReport(false)}
+        title={`Dispatch Report — ${ap?.name || id}`} size="full"
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <a href={dispatchReportExportUrl()} target="_blank" rel="noreferrer" className="btn-success btn-sm">
+              Export
+            </a>
+            <button onClick={() => setShowDispatchReport(false)} className="btn-secondary">Close</button>
+          </div>
+        }>
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-3 items-end p-3 bg-gray-50 rounded-lg">
+            <div>
+              <label className="label text-xs">Search</label>
+              <input type="text" className="input input-sm w-44" placeholder="Device ID / BOE / Vehicle…"
+                value={dispatchReportFilters.search}
+                onChange={e => setDispatchReportFilters(f => ({ ...f, search: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label text-xs">From Date</label>
+              <input type="date" className="input input-sm"
+                value={dispatchReportFilters.from}
+                onChange={e => setDispatchReportFilters(f => ({ ...f, from: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label text-xs">To Date</label>
+              <input type="date" className="input input-sm"
+                value={dispatchReportFilters.to}
+                onChange={e => setDispatchReportFilters(f => ({ ...f, to: e.target.value }))} />
+            </div>
+            <button onClick={() => runDispatchReport(dispatchReportFilters)} className="btn-primary btn-sm">Apply</button>
+            <button onClick={() => {
+              const reset = { search: '', from: '', to: '' };
+              setDispatchReportFilters(reset); runDispatchReport(reset);
+            }} className="btn-secondary btn-sm">Reset</button>
+          </div>
+
+          {dispatchReportLoading ? (
+            <div className="py-8 text-center text-gray-400">Loading report…</div>
+          ) : dispatchReportList.length === 0 ? (
+            <div className="py-8 text-center text-gray-400">No dispatch records found for the selected filters.</div>
+          ) : (
+            <div className="overflow-x-auto max-h-[60vh]">
+              <p className="text-xs text-gray-500 mb-2">{dispatchReportList.length} record(s)</p>
+              <table className="min-w-full text-xs">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    {['Date', 'Device ID', 'BOE', 'Vehicle', 'Regime', 'Route', 'Destination',
+                      'ETD', 'ETA', 'Manifest Date', 'Agency', 'Driver', 'Status'].map(h => (
+                      <th key={h} className="px-2 py-2 text-left font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {dispatchReportList.map((r, i) => (
+                    <tr key={r.id ?? i} className="hover:bg-gray-50">
+                      <td className="px-2 py-1.5 whitespace-nowrap">{r.date ? new Date(r.date).toLocaleDateString() : '—'}</td>
+                      <td className="px-2 py-1.5 font-mono font-semibold" style={{ color: '#1E2D7A' }}>{r.device_identifier || r.device_id || '—'}</td>
+                      <td className="px-2 py-1.5 font-mono">{r.boe || '—'}</td>
+                      <td className="px-2 py-1.5">{r.vehicle_number || '—'}</td>
+                      <td className="px-2 py-1.5">{r.regime || '—'}</td>
+                      <td className="px-2 py-1.5">{r.route || r.route_name || '—'}</td>
+                      <td className="px-2 py-1.5">{r.destination || r.destination_name || '—'}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">{r.etd ? new Date(r.etd).toLocaleString() : '—'}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">{r.eta ? new Date(r.eta).toLocaleString() : '—'}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">{r.manifest_date ? new Date(r.manifest_date).toLocaleDateString() : <span className="text-amber-500">Pending</span>}</td>
+                      <td className="px-2 py-1.5">{r.agency || '—'}</td>
+                      <td className="px-2 py-1.5">{r.driver_name || '—'}</td>
+                      <td className="px-2 py-1.5"><StatusBadge status={r.status || 'PENDING'} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </Modal>
 
       {/* Receipts Modal */}

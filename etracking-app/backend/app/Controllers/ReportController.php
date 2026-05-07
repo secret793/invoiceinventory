@@ -20,17 +20,45 @@ class ReportController
 
     public function dispatchReport(Request $req): void
     {
-        $id   = (int) $req->param('id');
+        $apId   = (int) $req->param('id');
+        $search = trim($req->query('search', ''));
+        $from   = $req->query('from', '');
+        $to     = $req->query('to', '');
+        $export = $req->query('export', '');
+
+        $where  = ['cal.allocation_point_id = ?'];
+        $params = [$apId];
+
+        if ($from)   { $where[] = 'cal.affixing_date >= ?'; $params[] = $from . ' 00:00:00'; }
+        if ($to)     { $where[] = 'cal.affixing_date <= ?'; $params[] = $to   . ' 23:59:59'; }
+        if ($search) {
+            $where[]  = '(d.device_id ILIKE ? OR cal.boe ILIKE ? OR cal.vehicle_number ILIKE ?)';
+            $like     = "%{$search}%";
+            $params[] = $like; $params[] = $like; $params[] = $like;
+        }
+
+        $wStr = 'WHERE ' . implode(' AND ', $where);
         $rows = Database::query(
-            'SELECT cal.*, d.device_id as device_identifier
+            "SELECT cal.*, d.device_id as device_identifier,
+                    ap.name as allocation_point_name,
+                    dest.name as destination_name,
+                    r.name as route_name, lr.name as long_route_name
              FROM confirmed_affix_logs cal
-             LEFT JOIN devices d ON cal.device_id = d.id
-             WHERE cal.confirmed_affixed_id = ? OR
-                   cal.allocation_point_id = (SELECT allocation_point_id FROM data_entry_assignments WHERE id = ?)
-             ORDER BY cal.created_at DESC',
-            [$id, $id]
+             LEFT JOIN devices d          ON cal.device_id          = d.id
+             LEFT JOIN allocation_points ap ON cal.allocation_point_id = ap.id
+             LEFT JOIN destinations dest  ON cal.destination_id      = dest.id
+             LEFT JOIN routes r           ON cal.route_id            = r.id
+             LEFT JOIN long_routes lr     ON cal.long_route_id       = lr.id
+             {$wStr}
+             ORDER BY cal.affixing_date DESC",
+            $params
         );
-        ExportService::streamCsv($rows, "dispatch-report-{$id}-" . date('Ymd') . '.csv');
+
+        if ($export === '1') {
+            ExportService::streamCsv($rows, "dispatch-report-{$apId}-" . date('Ymd') . '.csv');
+        } else {
+            Response::success($rows);
+        }
     }
 
     public function confirmedAffixReport(Request $req): void
