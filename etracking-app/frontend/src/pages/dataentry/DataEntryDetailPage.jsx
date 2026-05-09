@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../../services/api';
 import { allocationService } from '../../services/allocationService';
@@ -19,11 +19,24 @@ const STATUS_COLORS = {
 };
 
 const BLANK_RECEIPT = {
-  receipt_number: '', date: '', consignment_nature: 'CN', transaction_type: 'SAD',
-  sad_number: '', route_id: '', long_route_id: '', moving_trucks: 1,
-  billing_unit: '', destination_id: '',
-  unit_charge_gmd: '', total_charge_gmd: '',
-  agent_name: '', agent_phone: '', consignee_details: '', shipper_details: '',
+  receipt_number: '',
+  date: new Date().toISOString().slice(0, 10),
+  consignment_nature: 'CN',
+  transaction_type: 'SAD',
+  sad_number: '',
+  route_id: '',
+  long_route_id: '',
+  moving_trucks: 1,
+  billing_unit: '',
+  destination_id: '',
+  base_unit_charge_usd: '',
+  exchange_rate_used: '',
+  unit_charge_gmd: '',
+  total_charge_gmd: '',
+  agent_name: '',
+  agent_phone: '',
+  consignee_details: '',
+  shipper_details: '',
   description_of_goods: '',
 };
 
@@ -36,6 +49,11 @@ const BLANK_DISPATCH = {
   transaction_type: '', boe: '',
 };
 
+function fmtGMD(val) {
+  if (val === '' || val === null || val === undefined) return '';
+  return `D ${Number(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 export default function DataEntryDetailPage() {
   const { id } = useParams();
   const { notify } = useNotification();
@@ -47,6 +65,7 @@ export default function DataEntryDetailPage() {
   const [longRoutes, setLongRoutes] = useState([]);
   const [regimes, setRegimes] = useState([]);
   const [destinations, setDestinations] = useState([]);
+  const [exchangeRate, setExchangeRate] = useState(74.07);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedDevices, setSelectedDevices] = useState([]);
@@ -57,15 +76,74 @@ export default function DataEntryDetailPage() {
   const [receiptSaving, setReceiptSaving]   = useState(false);
   const [receiptForm, setReceiptForm]       = useState(BLANK_RECEIPT);
 
-  const [showDispatch, setShowDispatch]   = useState(false);
-  const [dispatchSaving, setDispatchSaving] = useState(false);
-  const [dispatchForm, setDispatchForm]   = useState(BLANK_DISPATCH);
+  const [showDispatch, setShowDispatch]       = useState(false);
+  const [dispatchSaving, setDispatchSaving]   = useState(false);
+  const [dispatchForm, setDispatchForm]       = useState(BLANK_DISPATCH);
 
-  const [showDispatchReport, setShowDispatchReport]     = useState(false);
-  const [dispatchReportList, setDispatchReportList]     = useState([]);
-  const [dispatchReportLoading, setDispatchReportLoading] = useState(false);
-  const [dispatchReportFilters, setDispatchReportFilters] = useState({ search: '', from: '', to: '' });
+  const [showDispatchReport, setShowDispatchReport]         = useState(false);
+  const [dispatchReportList, setDispatchReportList]         = useState([]);
+  const [dispatchReportLoading, setDispatchReportLoading]   = useState(false);
+  const [dispatchReportFilters, setDispatchReportFilters]   = useState({ search: '', from: '', to: '' });
 
+  // ─── Load exchange rate from DB ───────────────────────────────────────────
+  const loadExchangeRate = async () => {
+    try {
+      const { data } = await api.get('/settings/exchange-rate');
+      setExchangeRate(data.data?.rate ?? 74.07);
+    } catch { /* fallback stays 74.07 */ }
+  };
+
+  // ─── Pricing auto-calculation ─────────────────────────────────────────────
+  const calcPricing = (baseUsd, rate, trucks) => {
+    const b = parseFloat(baseUsd) || 0;
+    const r = parseFloat(rate) || 0;
+    const t = parseInt(trucks) || 1;
+    const unitGMD  = b * r;
+    const totalGMD = unitGMD * t;
+    return {
+      base_unit_charge_usd: b,
+      exchange_rate_used:   r,
+      unit_charge_gmd:      unitGMD,
+      total_charge_gmd:     totalGMD,
+    };
+  };
+
+  const applyRoute = (routeId) => {
+    const r = routes.find(x => String(x.id) === String(routeId));
+    if (!r) return;
+    const pricing = calcPricing(r.base_usd_amount, exchangeRate, receiptForm.moving_trucks);
+    setReceiptForm(f => ({
+      ...f,
+      route_id:      routeId,
+      long_route_id: '',            // mutually exclusive
+      billing_unit:  'Short Route',
+      ...pricing,
+    }));
+  };
+
+  const applyLongRoute = (routeId) => {
+    const r = longRoutes.find(x => String(x.id) === String(routeId));
+    if (!r) return;
+    const pricing = calcPricing(r.base_usd_amount, exchangeRate, receiptForm.moving_trucks);
+    setReceiptForm(f => ({
+      ...f,
+      long_route_id: routeId,
+      route_id:      '',            // mutually exclusive
+      billing_unit:  'Long Route',
+      ...pricing,
+    }));
+  };
+
+  const applyMovingTrucks = (trucks) => {
+    const t = parseInt(trucks) || 1;
+    setReceiptForm(f => {
+      const unitGMD  = parseFloat(f.unit_charge_gmd) || 0;
+      const totalGMD = unitGMD * t;
+      return { ...f, moving_trucks: t, total_charge_gmd: totalGMD };
+    });
+  };
+
+  // ─── Data load ────────────────────────────────────────────────────────────
   const load = () => {
     setLoading(true);
     Promise.all([
@@ -87,15 +165,48 @@ export default function DataEntryDetailPage() {
     }).catch(() => {}).finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, [id, statusFilter]);
+  useEffect(() => {
+    loadExchangeRate();
+    load();
+  }, [id, statusFilter]);
 
-  // Auto-fill dispatch form when receipt is selected
-  const handleReceiptSelect = (receiptId) => {
-    const r = receipts.find(rc => String(rc.id) === String(receiptId));
-    if (!r) {
-      setDispatchForm(f => ({ ...f, receipt_id: receiptId }));
+  // ─── Receipt create ───────────────────────────────────────────────────────
+  const handleNewReceipt = async (e) => {
+    e.preventDefault();
+    if (!receiptForm.route_id && !receiptForm.long_route_id) {
+      notify.error('At least one of Route or Long Route must be selected.');
       return;
     }
+    setReceiptSaving(true);
+    try {
+      // Auto-generate receipt number if blank
+      const rn = receiptForm.receipt_number.trim() ||
+        `R-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${String(Math.floor(Math.random()*9999)+1).padStart(4,'0')}`;
+      await api.post('/receipts', {
+        ...receiptForm,
+        receipt_number: rn,
+        allocation_point_id: id,
+        used: parseInt(receiptForm.moving_trucks) || 1,
+      });
+      notify.success('Receipt created');
+      setShowNewReceipt(false);
+      setReceiptForm({ ...BLANK_RECEIPT, date: new Date().toISOString().slice(0, 10) });
+      load();
+    } catch (err) { notify.error(err.response?.data?.message || err.message); }
+    finally { setReceiptSaving(false); }
+  };
+
+  // ─── Receipt auto-fill on dispatch ───────────────────────────────────────
+  const handleReceiptSelect = (receiptId) => {
+    const r = receipts.find(rc => String(rc.id) === String(receiptId));
+    if (!r) { setDispatchForm(f => ({ ...f, receipt_id: receiptId })); return; }
+    const avail = parseInt(r.used) ?? 0;
+    if (avail <= 0) {
+      notify.error(`Receipt ${r.receipt_number} is fully used (0/${r.moving_trucks} remaining).`);
+      setDispatchForm(f => ({ ...f, receipt_id: '' }));
+      return;
+    }
+    notify.success(`Receipt selected — ${avail}/${r.moving_trucks} truck(s) available.`);
     setDispatchForm(f => ({
       ...f,
       receipt_id:       receiptId,
@@ -108,23 +219,7 @@ export default function DataEntryDetailPage() {
     }));
   };
 
-  const handleNewReceipt = async (e) => {
-    e.preventDefault();
-    if (!receiptForm.route_id && !receiptForm.long_route_id) {
-      notify.error('At least one of Route or Long Route must be selected.');
-      return;
-    }
-    setReceiptSaving(true);
-    try {
-      await api.post('/receipts', { ...receiptForm, allocation_point_id: id });
-      notify.success('Receipt created');
-      setShowNewReceipt(false);
-      setReceiptForm(BLANK_RECEIPT);
-      load();
-    } catch (e) { notify.error(e.response?.data?.message || e.message); }
-    finally { setReceiptSaving(false); }
-  };
-
+  // ─── Dispatch ─────────────────────────────────────────────────────────────
   const handleDispatch = async (e) => {
     e.preventDefault();
     if (!selectedDevices.length) { notify.error('Select at least one device to dispatch'); return; }
@@ -134,7 +229,7 @@ export default function DataEntryDetailPage() {
       return d?.status === 'RECEIVED';
     });
     if (receivedIds.length) {
-      notify.error(`${receivedIds.length} selected device(s) have RECEIVED status. Accept them at the Allocation Point first.`);
+      notify.error(`${receivedIds.length} selected device(s) have RECEIVED status and cannot be dispatched. Accept them at the Allocation Point first.`);
       return;
     }
 
@@ -163,22 +258,24 @@ export default function DataEntryDetailPage() {
       );
 
       notify.success(`Dispatched ${selectedDevices.length} device(s) successfully`);
-      setShowDispatch(false); setSelectedDevices([]); setDispatchForm(BLANK_DISPATCH); load();
+      setShowDispatch(false);
+      setSelectedDevices([]);
+      setDispatchForm(BLANK_DISPATCH);
+      load();
     } catch (err) { notify.error(err.response?.data?.message || err.message); }
     finally { setDispatchSaving(false); }
   };
 
+  // ─── Dispatch report ──────────────────────────────────────────────────────
   const runDispatchReport = async (f = dispatchReportFilters) => {
     setDispatchReportLoading(true);
     try {
       const { data } = await api.get(`/reports/dispatch/${id}`, { params: f });
       setDispatchReportList(Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []));
-    } catch (e) { notify.error(e.message); }
+    } catch (err) { notify.error(err.message); }
     finally { setDispatchReportLoading(false); }
   };
-
   const openDispatchReport = () => { setShowDispatchReport(true); runDispatchReport(); };
-
   const dispatchReportExportUrl = () => {
     const p = new URLSearchParams();
     if (dispatchReportFilters.search) p.set('search', dispatchReportFilters.search);
@@ -187,36 +284,32 @@ export default function DataEntryDetailPage() {
     return `/api/reports/dispatch/${id}?${p.toString()}&export=1`;
   };
 
-  const filteredDevices = statusFilter
-    ? devices.filter(d => d.status === statusFilter)
-    : devices;
-
-  const counts = DEVICE_STATUSES.reduce((acc, s) => {
-    acc[s] = devices.filter(d => d.status === s).length;
-    return acc;
-  }, {});
-
+  const filteredDevices = statusFilter ? devices.filter(d => d.status === statusFilter) : devices;
+  const counts = DEVICE_STATUSES.reduce((acc, s) => { acc[s] = devices.filter(d => d.status === s).length; return acc; }, {});
   const receivedCount = counts['RECEIVED'] || 0;
 
   const deviceColumns = [
     { header: 'Device ID', key: 'device_id', render: v => <span className="font-mono font-semibold" style={{ color: '#1E2D7A' }}>{v}</span> },
-    { header: 'Type',      key: 'device_type', render: v => v || '—' },
-    { header: 'Status',    key: 'status', render: v => <StatusBadge status={v} /> },
-    { header: 'SIM',       key: 'sim_number', render: v => v || '—' },
-    { header: 'Serial',    key: 'serial_number', render: v => v || '—' },
+    { header: 'Type',      key: 'device_type',   render: v => v || '—' },
+    { header: 'Status',    key: 'status',         render: v => <StatusBadge status={v} /> },
+    { header: 'SIM',       key: 'sim_number',     render: v => v || '—' },
+    { header: 'Serial',    key: 'serial_number',  render: v => v || '—' },
   ];
 
   const selectedReceipt = receipts.find(r => String(r.id) === String(dispatchForm.receipt_id));
+
+  // ─── Pricing display helpers ───────────────────────────────────────────────
+  const hasRoutePricing = !!(receiptForm.route_id || receiptForm.long_route_id);
 
   return (
     <div>
       <PageHeader
         title={ap?.name || `Data Entry #${id}`}
-        subtitle={ap?.location ? `${ap.location}` : ''}
+        subtitle={ap?.location || ''}
         breadcrumbs={[{ label: 'Data Entry', path: '/data-entry' }, { label: ap?.name || id }]}
         actions={
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => setShowNewReceipt(true)} className="btn-info">New Receipt</button>
+            <button onClick={() => { loadExchangeRate(); setShowNewReceipt(true); }} className="btn-info">New Receipt</button>
             <button onClick={() => setShowReceipts(true)} className="btn-primary">Receipts</button>
             <button onClick={openDispatchReport} className="btn-success">Dispatch Report</button>
             <Link to={`/allocation/${id}`} className="btn-secondary">← Allocation Point</Link>
@@ -246,10 +339,7 @@ export default function DataEntryDetailPage() {
         {DEVICE_STATUSES.map(s => (
           <button key={s} onClick={() => setStatusFilter(statusFilter === s ? '' : s)}
             className={`card-sm cursor-pointer hover:shadow-md transition-all ${statusFilter === s ? 'ring-2' : ''}`}
-            style={{
-              background: STATUS_COLORS[s]?.bg,
-              borderColor: statusFilter === s ? '#1E2D7A' : STATUS_COLORS[s]?.bg,
-            }}>
+            style={{ background: STATUS_COLORS[s]?.bg, borderColor: statusFilter === s ? '#1E2D7A' : STATUS_COLORS[s]?.bg }}>
             <p className="text-xs font-semibold" style={{ color: STATUS_COLORS[s]?.text }}>{s} ({counts[s]})</p>
           </button>
         ))}
@@ -280,8 +370,9 @@ export default function DataEntryDetailPage() {
           emptyMessage="No devices at this allocation point." />
       </div>
 
-      {/* ─── New Receipt Modal ─── */}
-      <Modal isOpen={showNewReceipt} onClose={() => setShowNewReceipt(false)} title="New Receipt" size="xl"
+      {/* ═══ NEW RECEIPT MODAL ═══════════════════════════════════════════════ */}
+      <Modal isOpen={showNewReceipt} onClose={() => setShowNewReceipt(false)}
+        title="New Receipt" size="xl"
         footer={
           <>
             <button onClick={() => setShowNewReceipt(false)} className="btn-secondary">Cancel</button>
@@ -292,9 +383,10 @@ export default function DataEntryDetailPage() {
         }>
         <form id="receipt-form" onSubmit={handleNewReceipt} className="space-y-5">
 
-          {/* Section 1: Basic Info */}
+          {/* ── Section 1: Basic Information ── */}
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2 pb-1 border-b">Basic Information</h4>
+            <h4 className="text-xs font-bold uppercase tracking-widest mb-3 pb-1 border-b"
+              style={{ color: '#1E2D7A' }}>1 — Basic Information</h4>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="label">Receipt Date <span className="text-red-500">*</span></label>
@@ -305,10 +397,10 @@ export default function DataEntryDetailPage() {
                 <label className="label">Consignment Nature <span className="text-red-500">*</span></label>
                 <select required className="input" value={receiptForm.consignment_nature}
                   onChange={e => setReceiptForm(f => ({ ...f, consignment_nature: e.target.value }))}>
-                  <option value="CN">CN — Container</option>
-                  <option value="FT">FT — Freight</option>
+                  <option value="CN">CN — Containers</option>
+                  <option value="FT">FT — Fuel Tanker</option>
                   <option value="GC">GC — General Cargo</option>
-                  <option value="OV">OV — Over Dimensional</option>
+                  <option value="OV">OV — Overland Vehicles</option>
                 </select>
               </div>
             </div>
@@ -317,63 +409,84 @@ export default function DataEntryDetailPage() {
                 <label className="label">Transaction Type <span className="text-red-500">*</span></label>
                 <select required className="input" value={receiptForm.transaction_type}
                   onChange={e => setReceiptForm(f => ({ ...f, transaction_type: e.target.value }))}>
-                  <option value="SAD">SAD</option>
-                  <option value="TRUCK">TRUCK</option>
+                  <option value="SAD">SAD (Customs T1)</option>
+                  <option value="TRUCK">TRUCK (Domestic)</option>
                 </select>
               </div>
               <div>
-                <label className="label">SAD / Reference Number</label>
-                <input className="input" value={receiptForm.sad_number}
+                <label className="label">
+                  {receiptForm.transaction_type === 'TRUCK' ? 'Truck Reference Number' : 'SAD Number'}
+                  {' '}<span className="text-red-500">*</span>
+                </label>
+                <input required className="input" value={receiptForm.sad_number}
                   onChange={e => setReceiptForm(f => ({ ...f, sad_number: e.target.value }))}
-                  placeholder="SAD-2024-00001" />
+                  placeholder={receiptForm.transaction_type === 'TRUCK' ? 'TRUCK-REF-001' : 'SAD-2026-00001'} />
               </div>
             </div>
           </div>
 
-          {/* Section 2: Route Selection */}
+          {/* ── Section 2: Route Selection ── */}
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2 pb-1 border-b">Route Selection</h4>
+            <h4 className="text-xs font-bold uppercase tracking-widest mb-3 pb-1 border-b"
+              style={{ color: '#1E2D7A' }}>2 — Route Selection</h4>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="label">Route</label>
+                <label className="label">
+                  Route (Short)
+                  {receiptForm.route_id && <span className="ml-2 text-xs font-normal" style={{ color: '#085E37' }}>✓ selected</span>}
+                </label>
                 <select className="input" value={receiptForm.route_id}
-                  onChange={e => setReceiptForm(f => ({ ...f, route_id: e.target.value }))}>
-                  <option value="">Select route…</option>
-                  {routes.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  onChange={e => e.target.value ? applyRoute(e.target.value) : setReceiptForm(f => ({ ...f, route_id: '', billing_unit: '', base_unit_charge_usd: '', exchange_rate_used: '', unit_charge_gmd: '', total_charge_gmd: '' }))}>
+                  <option value="">Select short route…</option>
+                  {routes.map(r => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} {r.base_usd_amount ? `— $${r.base_usd_amount}` : ''}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
-                <label className="label">Long Route</label>
+                <label className="label">
+                  Long Route
+                  {receiptForm.long_route_id && <span className="ml-2 text-xs font-normal" style={{ color: '#085E37' }}>✓ selected</span>}
+                </label>
                 <select className="input" value={receiptForm.long_route_id}
-                  onChange={e => setReceiptForm(f => ({ ...f, long_route_id: e.target.value }))}>
+                  onChange={e => e.target.value ? applyLongRoute(e.target.value) : setReceiptForm(f => ({ ...f, long_route_id: '', billing_unit: '', base_unit_charge_usd: '', exchange_rate_used: '', unit_charge_gmd: '', total_charge_gmd: '' }))}>
                   <option value="">Select long route…</option>
-                  {longRoutes.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  {longRoutes.map(r => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} {r.base_usd_amount ? `— $${r.base_usd_amount}` : ''}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
-            <p className="text-xs text-amber-600 mt-1">* At least one of Route or Long Route is required.</p>
+            <p className="text-xs text-amber-600 mt-1">* At least one of Route or Long Route is required. Selecting one clears the other.</p>
+
             <div className="grid grid-cols-2 gap-4 mt-3">
               <div>
                 <label className="label">Billing Unit</label>
-                <input className="input" value={receiptForm.billing_unit}
-                  onChange={e => setReceiptForm(f => ({ ...f, billing_unit: e.target.value }))}
-                  placeholder="e.g. per trip" />
+                <input disabled className="input bg-gray-50 text-gray-600 font-medium"
+                  value={receiptForm.billing_unit || '—'}
+                  readOnly placeholder="Auto-set on route selection" />
               </div>
               <div>
                 <label className="label">Moving Trucks <span className="text-red-500">*</span></label>
-                <input required type="number" min={1} className="input" value={receiptForm.moving_trucks}
-                  onChange={e => setReceiptForm(f => ({ ...f, moving_trucks: e.target.value }))} />
+                <input required type="number" min={1} max={1000} className="input"
+                  value={receiptForm.moving_trucks}
+                  onChange={e => applyMovingTrucks(e.target.value)} />
               </div>
             </div>
           </div>
 
-          {/* Section 3: Location */}
+          {/* ── Section 3: Location ── */}
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2 pb-1 border-b">Location</h4>
+            <h4 className="text-xs font-bold uppercase tracking-widest mb-3 pb-1 border-b"
+              style={{ color: '#1E2D7A' }}>3 — Location</h4>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="label">Allocation Point</label>
-                <input disabled className="input bg-gray-50" value={ap?.name || id} readOnly />
+                <input disabled className="input bg-gray-50 text-gray-600" value={ap?.name || id} readOnly />
               </div>
               <div>
                 <label className="label">Destination</label>
@@ -386,74 +499,140 @@ export default function DataEntryDetailPage() {
             </div>
           </div>
 
-          {/* Section 4: Pricing (manual entry — no iCloud in this system) */}
+          {/* ── Section 4: Pricing (all read-only, auto-calculated) ── */}
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2 pb-1 border-b">Pricing</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="label">Unit Charge (GMD)</label>
-                <input type="number" step="0.01" min="0" className="input" value={receiptForm.unit_charge_gmd}
-                  onChange={e => setReceiptForm(f => ({ ...f, unit_charge_gmd: e.target.value }))}
-                  placeholder="0.00" />
-              </div>
-              <div>
-                <label className="label">Total Charge (GMD)</label>
-                <input type="number" step="0.01" min="0" className="input" value={receiptForm.total_charge_gmd}
-                  onChange={e => setReceiptForm(f => ({ ...f, total_charge_gmd: e.target.value }))}
-                  placeholder="0.00" />
-              </div>
-            </div>
-          </div>
+            <h4 className="text-xs font-bold uppercase tracking-widest mb-3 pb-1 border-b"
+              style={{ color: '#1E2D7A' }}>4 — Pricing Calculation</h4>
 
-          {/* Section 5: Agent & Consignment */}
-          <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2 pb-1 border-b">Agent & Consignment</h4>
+            {!hasRoutePricing && (
+              <p className="text-sm text-gray-500 mb-3 italic">Select a route above to auto-calculate pricing.</p>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="label">Agent Name</label>
-                <input className="input" value={receiptForm.agent_name}
-                  onChange={e => setReceiptForm(f => ({ ...f, agent_name: e.target.value }))}
-                  placeholder="Agent full name" />
+                <label className="label">Base Unit Charge (USD)</label>
+                <div className="input bg-gray-50 flex items-center gap-2">
+                  <span className="text-gray-400 text-sm">$</span>
+                  <span className={`font-semibold ${hasRoutePricing ? 'text-gray-900' : 'text-gray-400'}`}>
+                    {hasRoutePricing ? Number(receiptForm.base_unit_charge_usd).toFixed(2) : '—'}
+                  </span>
+                  <span className="text-xs text-gray-400 ml-auto">from route</span>
+                </div>
               </div>
               <div>
-                <label className="label">Agent Phone</label>
-                <input type="tel" className="input" value={receiptForm.agent_phone}
-                  onChange={e => setReceiptForm(f => ({ ...f, agent_phone: e.target.value }))}
-                  placeholder="+220 XXX XXXX" />
+                <label className="label">Exchange Rate (GMD/USD)</label>
+                <div className="input bg-gray-50 flex items-center gap-2">
+                  <span className={`font-semibold ${hasRoutePricing ? 'text-gray-900' : 'text-gray-400'}`}>
+                    {hasRoutePricing ? Number(receiptForm.exchange_rate_used).toFixed(4) : exchangeRate.toFixed(4)}
+                  </span>
+                  <span className="text-xs text-gray-400 ml-auto">system setting</span>
+                </div>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4 mt-3">
               <div>
-                <label className="label">Consignee Details</label>
-                <textarea className="input" rows={2} value={receiptForm.consignee_details}
+                <label className="label">Unit Charge (GMD)</label>
+                <div className="input bg-gray-50 flex items-center">
+                  <span className={`font-semibold ${hasRoutePricing ? '' : 'text-gray-400'}`}
+                    style={{ color: hasRoutePricing ? '#1E2D7A' : undefined }}>
+                    {hasRoutePricing ? fmtGMD(receiptForm.unit_charge_gmd) : '—'}
+                  </span>
+                  <span className="text-xs text-gray-400 ml-auto">base × rate</span>
+                </div>
+              </div>
+              <div>
+                <label className="label">Total Charge (GMD)</label>
+                <div className="input font-bold flex items-center"
+                  style={{ background: hasRoutePricing ? '#f0fdf4' : '#f9fafb', color: hasRoutePricing ? '#085E37' : '#6b7280' }}>
+                  <span className="text-sm">
+                    {hasRoutePricing ? fmtGMD(receiptForm.total_charge_gmd) : '—'}
+                  </span>
+                  <span className="text-xs font-normal text-gray-400 ml-auto">unit × trucks</span>
+                </div>
+              </div>
+            </div>
+
+            {hasRoutePricing && (
+              <div className="mt-3 rounded-lg p-3 text-xs" style={{ background: '#f0fdf4', color: '#166534' }}>
+                <strong>Formula:</strong> {' '}
+                ${Number(receiptForm.base_unit_charge_usd).toFixed(2)} × {Number(receiptForm.exchange_rate_used).toFixed(4)} GMD/USD
+                = {fmtGMD(receiptForm.unit_charge_gmd)} per truck
+                × {receiptForm.moving_trucks} trucks
+                = <strong>{fmtGMD(receiptForm.total_charge_gmd)}</strong>
+              </div>
+            )}
+          </div>
+
+          {/* ── Section 5: Agent & Consignment ── */}
+          <div>
+            <h4 className="text-xs font-bold uppercase tracking-widest mb-3 pb-1 border-b"
+              style={{ color: '#1E2D7A' }}>5 — Agent & Consignment Details</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="label">Agent Name <span className="text-red-500">*</span></label>
+                <input required className="input" value={receiptForm.agent_name}
+                  onChange={e => setReceiptForm(f => ({ ...f, agent_name: e.target.value }))}
+                  placeholder="Full agent name" maxLength={255} />
+              </div>
+              <div>
+                <label className="label">Agent Phone <span className="text-red-500">*</span></label>
+                <input required type="tel" className="input" value={receiptForm.agent_phone}
+                  onChange={e => setReceiptForm(f => ({ ...f, agent_phone: e.target.value }))}
+                  placeholder="+220 XXX XXXX" maxLength={20} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4 mt-3">
+              <div>
+                <label className="label">Consignee Details <span className="text-red-500">*</span></label>
+                <textarea required className="input" rows={3} value={receiptForm.consignee_details}
                   onChange={e => setReceiptForm(f => ({ ...f, consignee_details: e.target.value }))}
-                  placeholder="Consignee name, address…" />
+                  placeholder="Consignee name, address, contact…" maxLength={500} />
               </div>
               <div>
                 <label className="label">Shipper Details</label>
-                <textarea className="input" rows={2} value={receiptForm.shipper_details}
+                <textarea className="input" rows={3} value={receiptForm.shipper_details}
                   onChange={e => setReceiptForm(f => ({ ...f, shipper_details: e.target.value }))}
-                  placeholder="Shipper name, address…" />
+                  placeholder="Shipper name, address…" maxLength={500} />
               </div>
             </div>
             <div className="mt-3">
-              <label className="label">Description of Goods</label>
-              <textarea className="input" rows={2} value={receiptForm.description_of_goods}
+              <label className="label">Description of Goods <span className="text-red-500">*</span></label>
+              <textarea required className="input" rows={2} value={receiptForm.description_of_goods}
                 onChange={e => setReceiptForm(f => ({ ...f, description_of_goods: e.target.value }))}
-                placeholder="Brief description of the goods…" />
+                placeholder="Brief description of the goods being transported…" maxLength={1000} />
+            </div>
+          </div>
+
+          {/* ── Section 6: System Generated ── */}
+          <div className="rounded-lg p-3 text-xs" style={{ background: '#f8fafc' }}>
+            <h4 className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: '#1E2D7A' }}>
+              6 — System Generated
+            </h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <span className="text-gray-500">Receipt Number</span>
+                <p className="font-mono font-semibold text-gray-700">
+                  {receiptForm.receipt_number || `R-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-(auto)`}
+                </p>
+              </div>
+              <div>
+                <span className="text-gray-500">Available Usage Count</span>
+                <p className="font-bold" style={{ color: '#1E2D7A' }}>{receiptForm.moving_trucks} (= moving trucks)</p>
+              </div>
             </div>
           </div>
         </form>
       </Modal>
 
-      {/* ─── Receipts List Modal ─── */}
-      <Modal isOpen={showReceipts} onClose={() => setShowReceipts(false)} title="Receipts" size="xl">
+      {/* ═══ RECEIPTS LIST MODAL ═════════════════════════════════════════════ */}
+      <Modal isOpen={showReceipts} onClose={() => setShowReceipts(false)}
+        title="Generated Receipts" size="xl">
         <div className="overflow-x-auto">
           <table className="min-w-full text-xs">
             <thead className="bg-gray-50">
               <tr>
-                {['Receipt No.', 'Date', 'SAD/Ref', 'Type', 'Route', 'Long Route', 'Moving Trucks',
-                  'Used / Available', 'Unit GMD', 'Total GMD', 'Agent', 'Destination'].map(h => (
+                {['Receipt No.', 'Date', 'SAD/Ref', 'Type', 'Route', 'Long Route',
+                  'Moving Trucks', 'Used/Avail', 'Unit GMD', 'Total GMD', 'Agent', 'Destination'].map(h => (
                   <th key={h} className="px-3 py-2 text-left font-semibold text-gray-600 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -461,33 +640,36 @@ export default function DataEntryDetailPage() {
             <tbody className="bg-white divide-y divide-gray-100">
               {receipts.length === 0 ? (
                 <tr><td colSpan={12} className="text-center py-8 text-gray-400">No receipts found.</td></tr>
-              ) : receipts.map(r => (
-                <tr key={r.id} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 font-mono font-semibold" style={{ color: '#1E2D7A' }}>{r.receipt_number}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{r.date ? new Date(r.date).toLocaleDateString() : '—'}</td>
-                  <td className="px-3 py-2 font-mono">{r.sad_number || '—'}</td>
-                  <td className="px-3 py-2"><StatusBadge status={r.transaction_type || 'SAD'} /></td>
-                  <td className="px-3 py-2">{r.route_name || '—'}</td>
-                  <td className="px-3 py-2">{r.long_route_name || '—'}</td>
-                  <td className="px-3 py-2 text-center">{r.moving_trucks ?? '—'}</td>
-                  <td className="px-3 py-2 text-center">
-                    <span style={{ color: '#085E37' }}>{r.used ?? 0}</span>
-                    {' / '}
-                    <span style={{ color: '#1E2D7A' }}>{r.moving_trucks ?? '—'}</span>
-                  </td>
-                  <td className="px-3 py-2 text-right">{r.unit_charge_gmd ? `D ${Number(r.unit_charge_gmd).toLocaleString()}` : '—'}</td>
-                  <td className="px-3 py-2 text-right font-semibold">{r.total_charge_gmd ? `D ${Number(r.total_charge_gmd).toLocaleString()}` : '—'}</td>
-                  <td className="px-3 py-2">{r.agent_name || '—'}</td>
-                  <td className="px-3 py-2">{r.destination_name || '—'}</td>
-                </tr>
-              ))}
+              ) : receipts.map(r => {
+                const used = parseInt(r.used) ?? 0;
+                const total = parseInt(r.moving_trucks) ?? 0;
+                const usedColor = used === 0 ? '#dc2626' : used <= Math.ceil(total * 0.25) ? '#d97706' : '#085E37';
+                return (
+                  <tr key={r.id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 font-mono font-semibold" style={{ color: '#1E2D7A' }}>{r.receipt_number}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{r.date ? new Date(r.date).toLocaleDateString() : '—'}</td>
+                    <td className="px-3 py-2 font-mono">{r.sad_number || '—'}</td>
+                    <td className="px-3 py-2"><StatusBadge status={r.transaction_type || 'SAD'} /></td>
+                    <td className="px-3 py-2">{r.route_name || '—'}</td>
+                    <td className="px-3 py-2">{r.long_route_name || '—'}</td>
+                    <td className="px-3 py-2 text-center">{r.moving_trucks ?? '—'}</td>
+                    <td className="px-3 py-2 text-center font-semibold" style={{ color: usedColor }}>
+                      {used}/{total}
+                    </td>
+                    <td className="px-3 py-2 text-right">{r.unit_charge_gmd ? fmtGMD(r.unit_charge_gmd) : '—'}</td>
+                    <td className="px-3 py-2 text-right font-semibold">{r.total_charge_gmd ? fmtGMD(r.total_charge_gmd) : '—'}</td>
+                    <td className="px-3 py-2">{r.agent_name || '—'}</td>
+                    <td className="px-3 py-2">{r.destination_name || '—'}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </Modal>
 
-      {/* ─── Dispatch Modal ─── */}
-      <Modal isOpen={showDispatch} onClose={() => { setShowDispatch(false); }}
+      {/* ═══ DISPATCH MODAL ══════════════════════════════════════════════════ */}
+      <Modal isOpen={showDispatch} onClose={() => setShowDispatch(false)}
         title="Dispatch Devices" size="xl"
         footer={
           <>
@@ -502,7 +684,7 @@ export default function DataEntryDetailPage() {
           {/* Selected devices summary */}
           <div className="rounded-lg p-3 text-sm" style={{ background: '#eef1fb' }}>
             <p className="font-semibold mb-1" style={{ color: '#1E2D7A' }}>
-              {selectedDevices.length} device(s) selected for dispatch:
+              {selectedDevices.length} device(s) selected:
             </p>
             <p className="font-mono text-xs text-gray-600">
               {selectedDevices.map(sid => devices.find(d => d.id === sid)?.device_id).filter(Boolean).join(', ') || 'None'}
@@ -511,23 +693,28 @@ export default function DataEntryDetailPage() {
 
           {/* Receipt selection — auto-fills fields */}
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2 pb-1 border-b">Receipt</h4>
+            <h4 className="text-xs font-bold uppercase tracking-widest mb-2 pb-1 border-b" style={{ color: '#1E2D7A' }}>
+              Receipt
+            </h4>
             <div>
               <label className="label">Select Receipt <span className="text-red-500">*</span></label>
               <select required className="input" value={dispatchForm.receipt_id}
                 onChange={e => handleReceiptSelect(e.target.value)}>
                 <option value="">Select receipt…</option>
-                {receipts.map(r => (
+                {receipts.filter(r => (parseInt(r.used) ?? 0) > 0).map(r => (
                   <option key={r.id} value={r.id}>
-                    {r.receipt_number} — {r.transaction_type} — {r.sad_number || 'No SAD'} — Used: {r.used ?? 0}/{r.moving_trucks ?? '?'}
+                    {r.receipt_number} — {r.transaction_type} — {r.sad_number || 'No SAD'} — {r.used ?? '?'}/{r.moving_trucks ?? '?'} available
                   </option>
                 ))}
               </select>
               {selectedReceipt && (
                 <div className="mt-2 text-xs rounded p-2 grid grid-cols-3 gap-2" style={{ background: '#f0fdf4', color: '#166534' }}>
                   <span>Type: <strong>{selectedReceipt.transaction_type}</strong></span>
+                  <span>SAD/Ref: <strong>{selectedReceipt.sad_number || '—'}</strong></span>
+                  <span>Available: <strong>{selectedReceipt.used ?? '?'}/{selectedReceipt.moving_trucks ?? '?'}</strong></span>
                   <span>Route: <strong>{selectedReceipt.route_name || selectedReceipt.long_route_name || '—'}</strong></span>
                   <span>Agent: <strong>{selectedReceipt.agent_name || '—'}</strong></span>
+                  <span>Dest: <strong>{selectedReceipt.destination_name || '—'}</strong></span>
                 </div>
               )}
             </div>
@@ -535,13 +722,12 @@ export default function DataEntryDetailPage() {
 
           {/* Vehicle & Driver */}
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2 pb-1 border-b">Vehicle & Driver</h4>
+            <h4 className="text-xs font-bold uppercase tracking-widest mb-2 pb-1 border-b" style={{ color: '#1E2D7A' }}>Vehicle & Driver</h4>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="label">Vehicle Number <span className="text-red-500">*</span></label>
                 <input required className="input" value={dispatchForm.vehicle_number}
-                  onChange={e => setDispatchForm(f => ({ ...f, vehicle_number: e.target.value }))}
-                  placeholder="BJL 1234" />
+                  onChange={e => setDispatchForm(f => ({ ...f, vehicle_number: e.target.value }))} placeholder="BJL 1234" />
               </div>
               <div>
                 <label className="label">Truck Number</label>
@@ -565,7 +751,7 @@ export default function DataEntryDetailPage() {
 
           {/* Route & Regime */}
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2 pb-1 border-b">Route & Regime</h4>
+            <h4 className="text-xs font-bold uppercase tracking-widest mb-2 pb-1 border-b" style={{ color: '#1E2D7A' }}>Route & Regime</h4>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="label">Regime <span className="text-red-500">*</span></label>
@@ -606,7 +792,7 @@ export default function DataEntryDetailPage() {
 
           {/* Timing */}
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2 pb-1 border-b">Timing</h4>
+            <h4 className="text-xs font-bold uppercase tracking-widest mb-2 pb-1 border-b" style={{ color: '#1E2D7A' }}>Timing</h4>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="label">ETD (Est. Departure) <span className="text-red-500">*</span></label>
@@ -635,7 +821,7 @@ export default function DataEntryDetailPage() {
 
           {/* Dispatch Settings */}
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2 pb-1 border-b">Dispatch Settings</h4>
+            <h4 className="text-xs font-bold uppercase tracking-widest mb-2 pb-1 border-b" style={{ color: '#1E2D7A' }}>Dispatch Settings</h4>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="label">Dispatch Type <span className="text-red-500">*</span></label>
@@ -662,7 +848,7 @@ export default function DataEntryDetailPage() {
 
           {/* Cargo Details */}
           <div>
-            <h4 className="text-sm font-semibold text-gray-700 mb-2 pb-1 border-b">Cargo Details</h4>
+            <h4 className="text-xs font-bold uppercase tracking-widest mb-2 pb-1 border-b" style={{ color: '#1E2D7A' }}>Cargo Details</h4>
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="label">Container</label>
@@ -701,19 +887,16 @@ export default function DataEntryDetailPage() {
         </form>
       </Modal>
 
-      {/* ─── Dispatch Report Modal ─── */}
+      {/* ═══ DISPATCH REPORT MODAL ═══════════════════════════════════════════ */}
       <Modal isOpen={showDispatchReport} onClose={() => setShowDispatchReport(false)}
         title={`Dispatch Report — ${ap?.name || id}`} size="full"
         footer={
           <div className="flex items-center justify-between w-full">
-            <a href={dispatchReportExportUrl()} target="_blank" rel="noreferrer" className="btn-success btn-sm">
-              Export CSV
-            </a>
+            <a href={dispatchReportExportUrl()} target="_blank" rel="noreferrer" className="btn-success btn-sm">Export CSV</a>
             <button onClick={() => setShowDispatchReport(false)} className="btn-secondary">Close</button>
           </div>
         }>
         <div className="space-y-4">
-          {/* Filters */}
           <div className="flex flex-wrap gap-3 items-end p-3 bg-gray-50 rounded-lg">
             <div>
               <label className="label text-xs">Search</label>
@@ -723,14 +906,12 @@ export default function DataEntryDetailPage() {
             </div>
             <div>
               <label className="label text-xs">From Date</label>
-              <input type="date" className="input input-sm"
-                value={dispatchReportFilters.from}
+              <input type="date" className="input input-sm" value={dispatchReportFilters.from}
                 onChange={e => setDispatchReportFilters(f => ({ ...f, from: e.target.value }))} />
             </div>
             <div>
               <label className="label text-xs">To Date</label>
-              <input type="date" className="input input-sm"
-                value={dispatchReportFilters.to}
+              <input type="date" className="input input-sm" value={dispatchReportFilters.to}
                 onChange={e => setDispatchReportFilters(f => ({ ...f, to: e.target.value }))} />
             </div>
             <button onClick={() => runDispatchReport(dispatchReportFilters)} className="btn-primary btn-sm">Apply</button>
@@ -748,8 +929,8 @@ export default function DataEntryDetailPage() {
               <table className="min-w-full text-xs">
                 <thead className="bg-gray-50 sticky top-0">
                   <tr>
-                    {['Date', 'Device ID', 'BOE', 'Vehicle', 'Regime', 'Route', 'Destination',
-                      'ETD', 'ETA', 'Manifest Date', 'Agency', 'Driver', 'Status'].map(h => (
+                    {['Date','Device ID','BOE','Vehicle','Regime','Route','Destination',
+                      'ETD','ETA','Manifest Date','Agency','Driver','Status'].map(h => (
                       <th key={h} className="px-2 py-2 text-left font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>

@@ -180,6 +180,7 @@ $router->patch('/api/destinations/{id}',   [\App\Controllers\DestinationControll
 $router->delete('/api/destinations/{id}',  [\App\Controllers\DestinationController::class, 'destroy'], ['auth']);
 
 // ── System Settings ───────────────────────────────────────────────────────────
+$router->get('/api/settings/exchange-rate',   [\App\Controllers\SystemSettingController::class, 'exchangeRate'], ['auth']);
 $router->get('/api/system-settings',         [\App\Controllers\SystemSettingController::class, 'index'],  ['auth']);
 $router->put('/api/system-settings/{id}',    [\App\Controllers\SystemSettingController::class, 'update'], ['auth']);
 $router->patch('/api/system-settings/{id}',  [\App\Controllers\SystemSettingController::class, 'update'], ['auth']);
