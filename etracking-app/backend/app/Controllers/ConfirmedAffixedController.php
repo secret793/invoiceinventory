@@ -14,6 +14,35 @@ use App\Services\OverstayCalculatorService;
 
 class ConfirmedAffixedController
 {
+    /** Columns that actually exist in the confirmed_affixeds table */
+    private const ALLOWED = [
+        'device_id', 'allocation_point_id', 'boe', 'sad_number', 'transaction_type',
+        'transaction_reference', 'vehicle_number', 'truck_number', 'driver_name',
+        'regime', 'destination', 'destination_id', 'route_id', 'long_route_id',
+        'manifest_date', 'agency', 'agent_contact', 'receipt_id', 'status', 'date',
+    ];
+
+    /** Nullable bigint FK columns — empty string must become NULL */
+    private const INT_NULLABLE = [
+        'device_id', 'allocation_point_id', 'destination_id',
+        'route_id', 'long_route_id', 'receipt_id',
+    ];
+
+    private static function sanitize(array $data): array
+    {
+        $clean = array_intersect_key($data, array_flip(self::ALLOWED));
+        foreach (self::INT_NULLABLE as $col) {
+            if (array_key_exists($col, $clean) && ($clean[$col] === '' || $clean[$col] === null)) {
+                $clean[$col] = null;
+            }
+        }
+        // manifest_date: empty string → null (it's a date column)
+        if (array_key_exists('manifest_date', $clean) && $clean['manifest_date'] === '') {
+            $clean['manifest_date'] = null;
+        }
+        return $clean;
+    }
+
     public function index(Request $req): void
     {
         $user    = $req->user();
@@ -40,11 +69,16 @@ class ConfirmedAffixedController
 
     public function store(Request $req): void
     {
-        $data = $req->validated([
-            'boe'            => 'required',
-            'vehicle_number' => 'required',
-        ]);
-        $data = array_merge($data, $req->json());
+        $raw = $req->json();
+
+        if (empty($raw['boe'])) {
+            Response::error('boe is required', 422);
+        }
+        if (empty($raw['vehicle_number'])) {
+            Response::error('vehicle_number is required', 422);
+        }
+
+        $data = self::sanitize($raw);
         $row  = ConfirmedAffixed::create($data);
         Response::success($row, 'Confirmed affixed record created', 201);
     }
