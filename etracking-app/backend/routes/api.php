@@ -79,6 +79,7 @@ $router->get('/api/allocation-points/{id}/status-counts',     [\App\Controllers\
 $router->post('/api/allocation-points/{id}/send-to-ap',       [\App\Controllers\AllocationPointController::class, 'sendToAP'],         ['auth']);
 $router->post('/api/allocation-points/{id}/return-inventory', [\App\Controllers\AllocationPointController::class, 'returnToInventory'], ['auth']);
 $router->post('/api/allocation-points/{id}/change-status',    [\App\Controllers\AllocationPointController::class, 'changeStatus'],     ['auth']);
+$router->post('/api/allocation-points/{id}/collect',          [\App\Controllers\AllocationPointController::class, 'collectDevices'],     ['auth']);
 $router->put('/api/allocation-points/{id}',                   [\App\Controllers\AllocationPointController::class, 'update'],           ['auth']);
 $router->patch('/api/allocation-points/{id}',                 [\App\Controllers\AllocationPointController::class, 'update'],           ['auth']);
 $router->delete('/api/allocation-points/{id}',                [\App\Controllers\AllocationPointController::class, 'destroy'],          ['auth']);

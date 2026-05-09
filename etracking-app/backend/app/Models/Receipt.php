@@ -24,10 +24,11 @@ class Receipt extends BaseModel
 
         $whereStr = $where ? implode(' AND ', $where) : '';
         return static::paginate($page, $perPage, $whereStr, $params,
-            'r.*, ap.name as station_name, ro.name as route_name, lr.name as long_route_name',
+            'r.*, ap.name as station_name, ro.name as route_name, lr.name as long_route_name, d.name as destination_name',
             'r LEFT JOIN allocation_points ap ON r.allocation_point_id = ap.id
-             LEFT JOIN routes ro ON r.route_id = ro.id
-             LEFT JOIN long_routes lr ON r.long_route_id = lr.id',
+             LEFT JOIN routes ro    ON r.route_id      = ro.id
+             LEFT JOIN long_routes lr ON r.long_route_id = lr.id
+             LEFT JOIN destinations d  ON r.destination_id = d.id',
             'r.date DESC'
         );
     }

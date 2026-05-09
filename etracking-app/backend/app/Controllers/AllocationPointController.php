@@ -150,6 +150,50 @@ class AllocationPointController
         Response::success(['updated' => $updated], "$updated device(s) status changed");
     }
 
+    public function collectDevices(Request $req): void
+    {
+        $apId = (int) $req->param('id');
+        $data = $req->json();
+        $ids  = $data['device_ids'] ?? [];
+
+        if (empty($ids)) Response::error('device_ids are required');
+
+        $processed = 0;
+        foreach ($ids as $deviceId) {
+            $device = Device::find((int) $deviceId);
+            if (!$device) continue;
+            if ($device['allocation_point_id'] != $apId) continue;
+            if ($device['status'] !== 'RECEIVED') continue;
+
+            // Find the most recent DISTRIBUTION or ALLOCATION transfer to restore status
+            $transfer = Database::queryOne(
+                "SELECT * FROM transfers
+                 WHERE device_id = ? AND transfer_type IN ('DISTRIBUTION','ALLOCATION')
+                 ORDER BY created_at DESC LIMIT 1",
+                [(int) $deviceId]
+            );
+
+            if ($transfer) {
+                if ($transfer['transfer_type'] === 'DISTRIBUTION') {
+                    $newStatus = $transfer['distribution_point_status'] ?? 'ONLINE';
+                } else {
+                    $newStatus = $transfer['original_status'] ?? 'ONLINE';
+                }
+            } else {
+                $newStatus = 'ONLINE';
+            }
+            if (!$newStatus || $newStatus === 'RECEIVED') $newStatus = 'ONLINE';
+
+            Database::execute(
+                'UPDATE devices SET status = ?, allocation_point_id = ?, updated_at = NOW() WHERE id = ?',
+                [$newStatus, $apId, (int) $deviceId]
+            );
+            $processed++;
+        }
+
+        Response::success(['collected' => $processed], "$processed device(s) accepted (status restored to ONLINE)");
+    }
+
     public function store(Request $req): void
     {
         $data = $req->validated(['name' => 'required', 'location' => 'required']);

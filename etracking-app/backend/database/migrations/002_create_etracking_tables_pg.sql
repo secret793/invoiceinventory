@@ -579,3 +579,18 @@ CREATE TABLE IF NOT EXISTS device_retrieval_logs (
     notes               TEXT,
     created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- ── Receipt extra columns (added for Data Entry spec) ─────
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS transaction_type      VARCHAR(20)    DEFAULT 'SAD';
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS consignment_nature    VARCHAR(50);
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS moving_trucks         INT            DEFAULT 1;
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS used                  INT            DEFAULT 0;
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS billing_unit          VARCHAR(50);
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS base_unit_charge_usd  DECIMAL(10,2)  DEFAULT 0;
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS exchange_rate_used    DECIMAL(10,4)  DEFAULT 60;
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS unit_charge_gmd       DECIMAL(10,2)  DEFAULT 0;
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS total_charge_gmd      DECIMAL(10,2)  DEFAULT 0;
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS destination_id        BIGINT;
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS consignee_details     TEXT;
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS shipper_details       TEXT;
+ALTER TABLE receipts ADD COLUMN IF NOT EXISTS description_of_goods  TEXT;

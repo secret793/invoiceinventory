@@ -11,9 +11,12 @@ import Modal from '../../components/common/Modal';
 
 const STATUSES = ['ONLINE', 'OFFLINE', 'DAMAGED', 'FIXED', 'LOST', 'RECEIVED'];
 const STATUS_COLORS = {
-  ONLINE: { bg: '#dcfce7', text: '#166534' }, OFFLINE: { bg: '#fee2e2', text: '#991b1b' },
-  DAMAGED: { bg: '#ffedd5', text: '#9a3412' }, FIXED: { bg: '#f3e8ff', text: '#6b21a8' },
-  LOST: { bg: '#f3f4f6', text: '#374151' }, RECEIVED: { bg: '#dbeafe', text: '#1e40af' },
+  ONLINE:   { bg: '#dcfce7', text: '#166534' },
+  OFFLINE:  { bg: '#fee2e2', text: '#991b1b' },
+  DAMAGED:  { bg: '#ffedd5', text: '#9a3412' },
+  FIXED:    { bg: '#f3e8ff', text: '#6b21a8' },
+  LOST:     { bg: '#f3f4f6', text: '#374151' },
+  RECEIVED: { bg: '#dbeafe', text: '#1e40af' },
 };
 
 export default function AllocationDetailPage() {
@@ -30,8 +33,8 @@ export default function AllocationDetailPage() {
   const [allAPs, setAllAPs]             = useState([]);
   const [showSendAP, setShowSendAP]               = useState(false);
   const [showChangeStatus, setShowChangeStatus]   = useState(false);
-  const [targetAP, setTargetAP]     = useState('');
-  const [newStatus, setNewStatus]   = useState('');
+  const [targetAP, setTargetAP]       = useState('');
+  const [newStatus, setNewStatus]     = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
   const loadAP = useCallback(() => {
@@ -62,8 +65,17 @@ export default function AllocationDetailPage() {
       await api.post(`/allocation-points/${id}/${endpoint}`, body);
       notify.success(successMsg);
       setSelected([]); loadDevices(); loadCounts();
-    } catch (e) { notify.error(e.message); }
+    } catch (e) { notify.error(e.response?.data?.message || e.message); }
     finally { setActionLoading(false); }
+  };
+
+  const handleCollect = () => {
+    const receivedSelected = selected.filter(sid => {
+      const d = devices.find(dev => dev.id === sid);
+      return d?.status === 'RECEIVED';
+    });
+    if (!receivedSelected.length) { notify.error('Select at least one RECEIVED device to accept'); return; }
+    doAction('collect', { device_ids: receivedSelected }, `${receivedSelected.length} device(s) accepted — status restored to ONLINE`);
   };
 
   const handleSendToAP = async () => {
@@ -81,8 +93,13 @@ export default function AllocationDetailPage() {
     setShowChangeStatus(false); setNewStatus('');
   };
 
+  const hasReceivedSelected = selected.some(sid => {
+    const d = devices.find(dev => dev.id === sid);
+    return d?.status === 'RECEIVED';
+  });
+
   const columns = [
-    { header: 'Device ID',     key: 'device_id',     render: v => <span className="font-mono font-semibold">{v}</span> },
+    { header: 'Device ID',     key: 'device_id',     render: v => <span className="font-mono font-semibold" style={{ color: '#1E2D7A' }}>{v}</span> },
     { header: 'Type',          key: 'device_type',   render: v => v || '—' },
     { header: 'Serial',        key: 'serial_number', render: v => v || '—' },
     { header: 'SIM',           key: 'sim_number',    render: v => v || '—' },
@@ -99,20 +116,20 @@ export default function AllocationDetailPage() {
         subtitle={ap?.location || ''}
         breadcrumbs={[{ label: 'Allocation Points', path: '/allocation' }, { label: ap?.name || id }]}
         actions={
-          <Link to={`/data-entry/${id}`} className="btn-primary">Data Entry</Link>
+          <Link to={`/data-entry/${id}`} className="btn-primary">Data Entry →</Link>
         }
       />
 
-      {/* Status Counts */}
+      {/* Status Count Tabs */}
       <div className="flex flex-wrap gap-3 mb-5">
-        <button onClick={() => setStatusFilter('')}
+        <button onClick={() => { setStatusFilter(''); setPage(1); }}
           className={`card-sm flex items-center gap-2 cursor-pointer hover:shadow-md ${!statusFilter ? 'ring-2' : ''}`}
           style={{ borderColor: !statusFilter ? '#1E2D7A' : undefined }}>
           <p className="text-xs text-gray-500">All</p>
           <p className="text-lg font-bold" style={{ color: '#1E2D7A' }}>{total}</p>
         </button>
         {STATUSES.map(s => (
-          <button key={s} onClick={() => setStatusFilter(statusFilter === s ? '' : s)}
+          <button key={s} onClick={() => { setStatusFilter(statusFilter === s ? '' : s); setPage(1); }}
             className={`card-sm flex items-center gap-2 cursor-pointer hover:shadow-md ${statusFilter === s ? 'ring-2' : ''}`}
             style={{ borderColor: statusFilter === s ? '#1E2D7A' : undefined }}>
             <div style={{ background: STATUS_COLORS[s]?.bg, borderRadius: 4, padding: '2px 6px' }}>
@@ -130,6 +147,16 @@ export default function AllocationDetailPage() {
           <span className="text-sm font-semibold mr-2" style={{ color: '#1E2D7A' }}>
             {selected.length} selected
           </span>
+
+          {/* Accept Devices — only shown when RECEIVED devices are selected */}
+          {hasReceivedSelected && (
+            <button onClick={handleCollect} disabled={actionLoading}
+              className="btn-sm font-semibold text-white rounded-lg px-3 py-1.5"
+              style={{ background: '#085E37' }}>
+              {actionLoading ? 'Accepting…' : '✓ Accept Devices'}
+            </button>
+          )}
+
           <button onClick={() => setShowSendAP(true)} disabled={actionLoading} className="btn-primary btn-sm">
             Send to Allocation Point
           </button>
@@ -140,6 +167,18 @@ export default function AllocationDetailPage() {
             Change Status
           </button>
           <button onClick={() => setSelected([])} className="btn-secondary btn-sm ml-auto">Clear</button>
+        </div>
+      )}
+
+      {/* RECEIVED devices info banner */}
+      {(counts['RECEIVED'] || 0) > 0 && (
+        <div className="mb-4 rounded-lg px-4 py-3 text-sm flex items-center gap-2"
+          style={{ background: '#dbeafe', color: '#1e40af' }}>
+          <span className="font-bold">ℹ</span>
+          <span>
+            <strong>{counts['RECEIVED']}</strong> device(s) arrived with RECEIVED status.
+            Select them and click <strong>Accept Devices</strong> to restore their status and make them available for dispatch.
+          </span>
         </div>
       )}
 
@@ -170,9 +209,12 @@ export default function AllocationDetailPage() {
             <label className="label">Target Allocation Point <span className="text-red-500">*</span></label>
             <select className="input" value={targetAP} onChange={e => setTargetAP(e.target.value)}>
               <option value="">Select allocation point…</option>
-              {allAPs.filter(a => a.id != id).map(a => <option key={a.id} value={a.id}>{a.name} — {a.location}</option>)}
+              {allAPs.filter(a => a.id != id).map(a => (
+                <option key={a.id} value={a.id}>{a.name} — {a.location}</option>
+              ))}
             </select>
           </div>
+          <p className="text-xs text-amber-600">Note: RECEIVED devices cannot be sent to another AP. They must be Accepted first.</p>
         </div>
       </Modal>
 
@@ -188,6 +230,7 @@ export default function AllocationDetailPage() {
         }>
         <div className="space-y-3">
           <p className="text-sm text-gray-600">Change status for <strong>{selected.length}</strong> device(s):</p>
+          <p className="text-xs text-amber-600">Note: RECEIVED devices are excluded from status change. Accept them first.</p>
           <div>
             <label className="label">New Status <span className="text-red-500">*</span></label>
             <select className="input" value={newStatus} onChange={e => setNewStatus(e.target.value)}>
