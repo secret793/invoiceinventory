@@ -148,7 +148,7 @@ export default function ConfirmedAffixedPage() {
                 Pick Selected ({selected.length})
               </button>
             )}
-            <button onClick={openReport} className="btn-secondary">
+            <button onClick={openReport} className="btn-success">
               View Report
             </button>
           </div>

@@ -13,13 +13,13 @@ class Database
         if (self::$instance === null) {
             $url = getenv('DATABASE_URL');
             if ($url) {
-                $p   = parse_url($url);
+                $p    = parse_url($url);
                 $host = $p['host'] ?? 'localhost';
                 $port = $p['port'] ?? 5432;
                 $db   = ltrim($p['path'] ?? '/heliumdb', '/');
                 $user = $p['user'] ?? 'postgres';
                 $pass = $p['pass'] ?? '';
-                $query = $p['query'] ?? '';
+                $query   = $p['query'] ?? '';
                 $sslmode = '';
                 if (str_contains($query, 'sslmode=disable')) {
                     $sslmode = ';sslmode=disable';
@@ -43,16 +43,27 @@ class Database
         return self::$instance;
     }
 
+    // ── MySQL compatibility: replace PostgreSQL-only keywords ────────────────
+    private static function normalise(string $sql): string
+    {
+        if (self::isMySQL()) {
+            // ILIKE is not supported in MySQL; LIKE is already case-insensitive
+            // with utf8mb4_unicode_ci collation (the default in our MySQL schema)
+            $sql = preg_replace('/\bILIKE\b/i', 'LIKE', $sql);
+        }
+        return $sql;
+    }
+
     public static function query(string $sql, array $params = []): array
     {
-        $stmt = self::getInstance()->prepare($sql);
+        $stmt = self::getInstance()->prepare(self::normalise($sql));
         $stmt->execute($params);
         return $stmt->fetchAll();
     }
 
     public static function queryOne(string $sql, array $params = []): ?array
     {
-        $stmt = self::getInstance()->prepare($sql);
+        $stmt = self::getInstance()->prepare(self::normalise($sql));
         $stmt->execute($params);
         $row = $stmt->fetch();
         return $row ?: null;
@@ -60,22 +71,23 @@ class Database
 
     public static function execute(string $sql, array $params = []): int
     {
-        $stmt = self::getInstance()->prepare($sql);
+        $stmt = self::getInstance()->prepare(self::normalise($sql));
         $stmt->execute($params);
         return $stmt->rowCount();
     }
 
     public static function insert(string $sql, array $params = []): string
     {
-        // For PostgreSQL use RETURNING id; for others fall back to lastInsertId
-        if (stripos(self::getDsn(), 'pgsql') !== false) {
-            // Append RETURNING id if not already present
+        $sql = self::normalise($sql);
+        if (!self::isMySQL()) {
+            // PostgreSQL: use RETURNING id
             $returning = (stripos($sql, 'RETURNING') === false) ? ' RETURNING id' : '';
             $stmt = self::getInstance()->prepare($sql . $returning);
             $stmt->execute($params);
             $row = $stmt->fetch();
             return (string) ($row['id'] ?? 0);
         }
+        // MySQL: standard INSERT + lastInsertId()
         $stmt = self::getInstance()->prepare($sql);
         $stmt->execute($params);
         return self::getInstance()->lastInsertId();
@@ -86,10 +98,14 @@ class Database
         return self::getInstance()->lastInsertId();
     }
 
-    private static function getDsn(): string
+    public static function isMySQL(): bool
     {
         $url = getenv('DATABASE_URL');
-        if ($url && str_starts_with($url, 'postgresql')) return 'pgsql';
-        return 'mysql';
+        return !($url && (str_starts_with($url, 'postgresql') || str_starts_with($url, 'postgres')));
+    }
+
+    private static function getDsn(): string
+    {
+        return self::isMySQL() ? 'mysql' : 'pgsql';
     }
 }

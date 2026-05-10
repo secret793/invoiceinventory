@@ -1,3 +1,4 @@
+/* @refresh reset */
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { notificationService } from '../services/notificationService';
 import { useAuth } from './AuthContext';

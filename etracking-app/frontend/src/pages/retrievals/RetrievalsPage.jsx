@@ -322,7 +322,7 @@ export default function RetrievalsPage() {
         subtitle="Track GPS device retrieval lifecycle, overstay billing and payment approval"
         actions={
           <div className="flex gap-2 flex-wrap">
-            <button onClick={openOverstayModal} className="btn-warning">Overstay Devices</button>
+            <button onClick={openOverstayModal} className="btn-danger">Overstay Devices</button>
             <button onClick={openReport}        className="btn-secondary">Report</button>
             <a href="/api/device-retrievals/export" target="_blank" className="btn-secondary">Export CSV</a>
           </div>

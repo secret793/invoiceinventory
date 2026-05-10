@@ -321,6 +321,7 @@ export default function DataEntryDetailPage() {
         breadcrumbs={[{ label: 'Data Entry', path: '/data-entry' }, { label: ap?.name || id }]}
         actions={
           <div className="flex flex-wrap gap-2">
+            <button onClick={() => { loadExchangeRate(); setShowDispatch(true); }} className="btn-warning">🚛 Dispatch</button>
             <button onClick={() => { loadExchangeRate(); setShowNewReceipt(true); }} className="btn-info">New Receipt</button>
             <button onClick={() => setShowReceipts(true)} className="btn-primary">Receipts</button>
             <button onClick={openDispatchReport} className="btn-success">Dispatch Report</button>
