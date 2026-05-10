@@ -1,8 +1,8 @@
+/* @refresh reset */
 import React, { useState, useEffect } from 'react';
 import { useRetrievals } from '../../hooks/useRetrievals';
 import { retrievalService } from '../../services/retrievalService';
 import { distributionService } from '../../services/distributionService';
-import { allocationService } from '../../services/allocationService';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useAuth } from '../../contexts/AuthContext';
 import PageHeader from '../../components/common/PageHeader';
@@ -11,8 +11,18 @@ import Pagination from '../../components/common/Pagination';
 import StatusBadge from '../../components/common/StatusBadge';
 import Modal from '../../components/common/Modal';
 
-const fmtDate  = (v) => v ? new Date(v).toLocaleDateString() : '—';
+const fmtDate  = (v) => v ? new Date(v).toLocaleDateString('en-GB') : '—';
 const fmtMoney = (v) => parseFloat(v) > 0 ? `GMD ${Number(v).toLocaleString()}` : '—';
+const isSADType = (t) => ['SAD', 'T1'].includes((t || '').toUpperCase());
+
+function Field({ label, value, highlight }) {
+  return (
+    <div>
+      <p className="text-xs text-gray-500 mb-0.5">{label}</p>
+      <p className={`text-sm font-medium ${highlight ? 'text-red-700' : 'text-gray-800'}`}>{value || '—'}</p>
+    </div>
+  );
+}
 
 function FiltersBar({ onFilter }) {
   const [f, setF] = useState({
@@ -35,11 +45,10 @@ function FiltersBar({ onFilter }) {
       </select>
       <select className="input input-sm w-36" value={f.payment_status}
         onChange={e => apply({ ...f, payment_status: e.target.value })}>
-        <option value="">All Payment Status</option>
-        <option value="PP">Pending</option>
+        <option value="">All Payment</option>
+        <option value="PP">Pending Pmt</option>
         <option value="PD">Paid</option>
         <option value="WAIVED">Waived</option>
-        <option value="EXEMPTED">Exempted</option>
       </select>
       <div className="flex items-center gap-1">
         <label className="text-xs text-gray-500 whitespace-nowrap">Overstay ≥</label>
@@ -65,23 +74,31 @@ function FiltersBar({ onFilter }) {
 export default function RetrievalsPage() {
   const { retrievals, meta, loading, fetch, changePage, changeFilters } = useRetrievals();
   const { notify }    = useNotification();
-  const { hasRole }   = useAuth();
+  const { hasRole, user }   = useAuth();
 
   const [dps, setDps] = useState([]);
+  useEffect(() => { distributionService.list().then(setDps).catch(() => {}); }, []);
 
-  const isSuperAdmin = hasRole('Super Admin');
-  const isFinance    = hasRole(['Finance Officer', 'Super Admin']);
-  const canRetrieve  = hasRole(['Super Admin', 'Warehouse Manager', 'Retrieval Officer']);
-
-  useEffect(() => {
-    distributionService.list().then(setDps).catch(() => {});
-  }, []);
+  const isSuperAdmin  = hasRole('Super Admin');
+  const isFinance     = hasRole(['Finance Officer', 'Super Admin']);
+  const isFinanceOnly = hasRole('Finance Officer') && !isSuperAdmin;
+  const canRetrieve   = hasRole(['Super Admin', 'Warehouse Manager', 'Retrieval Officer']);
 
   const [busy, setBusy] = useState(false);
 
-  /* ── Retrieve Device ─────────────────────────────────────────────────── */
+  /* ── Retrieve Device ──────────────────────────────────────────────────── */
   const [retrieveRow,  setRetrieveRow]  = useState(null);
   const [retrieveForm, setRetrieveForm] = useState({ t1_validation_ref: '' });
+  const [t1Check, setT1Check] = useState({ loading: false, isLast: false });
+
+  useEffect(() => {
+    if (!retrieveRow) { setT1Check({ loading: false, isLast: false }); return; }
+    if (!isSADType(retrieveRow.transaction_type)) { setT1Check({ loading: false, isLast: false }); return; }
+    setT1Check({ loading: true, isLast: false });
+    retrievalService.checkLastDevice(retrieveRow.id)
+      .then(d => setT1Check({ loading: false, isLast: !!d?.is_last_device }))
+      .catch(() => setT1Check({ loading: false, isLast: false }));
+  }, [retrieveRow?.id]);
 
   const handleRetrieve = async () => {
     setBusy(true);
@@ -94,7 +111,7 @@ export default function RetrievalsPage() {
     finally { setBusy(false); }
   };
 
-  /* ── Return to Outstation ────────────────────────────────────────────── */
+  /* ── Return to Outstation ─────────────────────────────────────────────── */
   const [outstationRow,  setOutstationRow]  = useState(null);
   const [outstationForm, setOutstationForm] = useState({ distribution_point_id: '', archive_reason: '' });
 
@@ -110,26 +127,35 @@ export default function RetrievalsPage() {
     finally { setBusy(false); }
   };
 
-  /* ── Generate Overdue Bill ───────────────────────────────────────────── */
-  const [billRow, setBillRow] = useState(null);
+  /* ── Generate Overdue Bill ────────────────────────────────────────────── */
+  const [billRow, setBillRow]             = useState(null);
+  const [billConsignee, setBillConsignee] = useState('');
+
+  const openBillModal = (row) => {
+    setBillRow(row);
+    setBillConsignee(row.consignee || row.agency || '');
+  };
 
   const handleGenerateBill = async () => {
     setBusy(true);
     try {
-      const res = await retrievalService.generateInvoice(billRow.id);
-      notify.success(`Overstay bill generated — GMD ${Number(res?.overstay_amount || 0).toLocaleString()}`);
+      const res = await retrievalService.generateInvoice(billRow.id, { consignee: billConsignee });
+      notify.success(`Overstay bill generated — ${fmtMoney(res?.overstay_amount || res?.total_amount || 0)}`);
       setBillRow(null);
       fetch();
     } catch (e) { notify.error(e.message); }
     finally { setBusy(false); }
   };
 
-  /* ── Waiver ──────────────────────────────────────────────────────────── */
-  const [waiverRow,    setWaiverRow]    = useState(null);
+  /* ── Waiver ───────────────────────────────────────────────────────────── */
+  const [waiverRow, setWaiverRow]       = useState(null);
   const [waiverReason, setWaiverReason] = useState('');
 
   const handleWaiver = async () => {
-    if (!waiverReason.trim()) { notify.error('Waiver reason is required.'); return; }
+    if (waiverReason.trim().length < 10) {
+      notify.error('Waiver reason must be at least 10 characters.');
+      return;
+    }
     setBusy(true);
     try {
       await retrievalService.waiver(waiverRow.id, { reason: waiverReason });
@@ -140,7 +166,7 @@ export default function RetrievalsPage() {
     finally { setBusy(false); }
   };
 
-  /* ── Approve Payment ─────────────────────────────────────────────────── */
+  /* ── Approve Payment ──────────────────────────────────────────────────── */
   const [payRow,  setPayRow]  = useState(null);
   const [payForm, setPayForm] = useState({ receipt_number: '', finance_notes: '' });
 
@@ -156,8 +182,8 @@ export default function RetrievalsPage() {
     finally { setBusy(false); }
   };
 
-  /* ── Manual Overstay Days (Super Admin) ──────────────────────────────── */
-  const [manualRow,  setManualRow]  = useState(null);
+  /* ── Manual Overstay Days ─────────────────────────────────────────────── */
+  const [manualRow, setManualRow]   = useState(null);
   const [manualDays, setManualDays] = useState('');
 
   const handleManualOverstay = async () => {
@@ -171,9 +197,9 @@ export default function RetrievalsPage() {
     finally { setBusy(false); }
   };
 
-  /* ── Overstay Devices Modal ──────────────────────────────────────────── */
-  const [overstayOpen,    setOverstayOpen]    = useState(false);
-  const [overstayList,    setOverstayList]    = useState([]);
+  /* ── Overstay Devices Modal ───────────────────────────────────────────── */
+  const [overstayOpen, setOverstayOpen]       = useState(false);
+  const [overstayList, setOverstayList]       = useState([]);
   const [overstayLoading, setOverstayLoading] = useState(false);
 
   const openOverstayModal = async () => {
@@ -185,9 +211,9 @@ export default function RetrievalsPage() {
     finally { setOverstayLoading(false); }
   };
 
-  /* ── Retrieval Report Modal ──────────────────────────────────────────── */
-  const [reportOpen,    setReportOpen]    = useState(false);
-  const [reportList,    setReportList]    = useState([]);
+  /* ── Retrieval Report Modal ───────────────────────────────────────────── */
+  const [reportOpen, setReportOpen]       = useState(false);
+  const [reportList, setReportList]       = useState([]);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportFilters, setReportFilters] = useState({ from: '', to: '', retrieval_status: '' });
 
@@ -202,7 +228,7 @@ export default function RetrievalsPage() {
 
   const openReport = () => { setReportOpen(true); runReport(); };
 
-  /* ── Columns ─────────────────────────────────────────────────────────── */
+  /* ── Table Columns ────────────────────────────────────────────────────── */
   const columns = [
     {
       header: 'Affixing Date', key: 'affixing_date',
@@ -222,7 +248,7 @@ export default function RetrievalsPage() {
     },
     {
       header: 'Type', key: 'transaction_type',
-      render: v => v ? <StatusBadge status={v} /> : '—'
+      render: v => v ? <StatusBadge status={isSADType(v) ? 'SAD' : 'TRUCK'} /> : '—'
     },
     {
       header: 'T1 Ref', key: 't1_validation_ref',
@@ -247,8 +273,8 @@ export default function RetrievalsPage() {
     {
       header: 'Overstay', key: 'overstay_days',
       render: (v, row) => {
-        const days     = parseInt(v) || 0;
-        const waived   = row.is_waived || row.payment_status === 'WAIVED';
+        const days   = parseInt(v) || 0;
+        const waived = !!(row.is_waived) || row.payment_status === 'WAIVED';
         if (waived)   return <span className="inline-flex px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-500">Waived</span>;
         if (days > 0) return <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">{days}d overdue</span>;
         return <span className="inline-flex px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">On time</span>;
@@ -262,7 +288,7 @@ export default function RetrievalsPage() {
     },
     {
       header: 'Payment', key: 'payment_status',
-      render: v => <StatusBadge status={v || 'PP'} />
+      render: v => v ? <StatusBadge status={v} /> : <span className="text-xs text-gray-400">No bill</span>
     },
     {
       header: 'Retrieval', key: 'retrieval_status',
@@ -271,14 +297,16 @@ export default function RetrievalsPage() {
     {
       header: 'Actions', key: 'id',
       render: (_, row) => {
-        const days      = parseInt(row.overstay_days) || 0;
-        const pay       = row.payment_status || 'PP';
-        const ret       = row.retrieval_status || 'NOT_RETRIEVED';
-        const isWaived  = !!(row.is_waived) || pay === 'WAIVED';
-        const hasBill   = !isWaived && days >= 1 && pay === 'PP';
-        const canPay    = isFinance && pay === 'PP' && (parseFloat(row.overstay_amount) || 0) > 0;
-        const canDL     = pay === 'PD' && !!row.finance_approval_date;
-        const canBeRet  = isWaived || days < 1 || pay === 'PD';
+        const days     = parseInt(row.overstay_days) || 0;
+        const pay      = row.payment_status;
+        const ret      = row.retrieval_status || 'NOT_RETRIEVED';
+        const isWaived = !!(row.is_waived) || pay === 'WAIVED';
+
+        const canGenBill = !isWaived && days >= 1 && !pay;
+        const canWaive   = isSuperAdmin && !isWaived && pay === 'PP';
+        const canPay     = isFinance && pay === 'PP' && (parseFloat(row.overstay_amount) || 0) > 0;
+        const canDL      = pay === 'PD' && !!row.finance_approval_date;
+        const canBeRet   = isWaived || days < 1 || pay === 'PD';
 
         return (
           <div className="flex flex-wrap gap-1">
@@ -290,10 +318,10 @@ export default function RetrievalsPage() {
               <button onClick={() => { setOutstationRow(row); setOutstationForm({ distribution_point_id: '', archive_reason: '' }); }}
                 className="btn-warning btn-sm">Return&nbsp;DP</button>
             )}
-            {hasBill && (
-              <button onClick={() => setBillRow(row)} className="btn-danger btn-sm">Gen.&nbsp;Bill</button>
+            {canGenBill && (
+              <button onClick={() => openBillModal(row)} className="btn-danger btn-sm">Gen.&nbsp;Bill</button>
             )}
-            {isSuperAdmin && !isWaived && days > 0 && pay === 'PP' && (
+            {canWaive && (
               <button onClick={() => { setWaiverRow(row); setWaiverReason(''); }}
                 className="btn-secondary btn-sm">Waive</button>
             )}
@@ -319,7 +347,7 @@ export default function RetrievalsPage() {
     <div>
       <PageHeader
         title="Device Retrievals"
-        subtitle="Track GPS device retrieval lifecycle, overstay billing and payment approval"
+        subtitle="Track GPS device retrieval lifecycle, overstay billing and payment"
         actions={
           <div className="flex gap-2 flex-wrap">
             <button onClick={openOverstayModal} className="btn-danger">Overstay Devices</button>
@@ -328,6 +356,13 @@ export default function RetrievalsPage() {
           </div>
         }
       />
+
+      {isFinanceOnly && (
+        <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+          Finance Officer view — showing records with 2+ overstay days only.
+          Use <strong>Approve Payment</strong> on any <em>Pending Payment (PP)</em> record to confirm receipt.
+        </div>
+      )}
 
       <FiltersBar onFilter={changeFilters} />
 
@@ -339,7 +374,7 @@ export default function RetrievalsPage() {
         </div>
       </div>
 
-      {/* ── Retrieve Device ─────────────────────────────────────────────── */}
+      {/* ── Retrieve Device ──────────────────────────────────────────────── */}
       <Modal isOpen={!!retrieveRow} onClose={() => setRetrieveRow(null)} title="Retrieve Device"
         footer={
           <>
@@ -356,19 +391,28 @@ export default function RetrievalsPage() {
               <p><span className="text-gray-500">SAD:</span> <strong className="font-mono">{retrieveRow.sad_number || '—'}</strong></p>
               <p><span className="text-gray-500">Vehicle:</span> <strong>{retrieveRow.vehicle_number || '—'}</strong></p>
               <p><span className="text-gray-500">Device:</span> <strong className="font-mono">{retrieveRow.device_identifier || '—'}</strong></p>
-              <p><span className="text-gray-500">Type:</span> <StatusBadge status={retrieveRow.transaction_type || '—'} /></p>
+              <p><span className="text-gray-500">Type:</span> <StatusBadge status={isSADType(retrieveRow.transaction_type) ? 'SAD' : (retrieveRow.transaction_type || '—')} /></p>
             </div>
-            {(retrieveRow.transaction_type || '').toUpperCase() === 'SAD' && (
+
+            {isSADType(retrieveRow.transaction_type) && (
               <div>
                 <label className="label">
                   T1 Validation Reference
-                  <span className="text-xs text-gray-400 ml-1">(required if last device on SAD receipt)</span>
+                  {t1Check.loading && <span className="text-xs text-gray-400 ml-2">Checking…</span>}
+                  {!t1Check.loading && t1Check.isLast && (
+                    <span className="text-xs font-semibold text-red-600 ml-2">* REQUIRED — last device on this SAD receipt</span>
+                  )}
+                  {!t1Check.loading && !t1Check.isLast && (
+                    <span className="text-xs text-gray-400 ml-2">(optional — not last device)</span>
+                  )}
                 </label>
-                <input type="text" className="input" maxLength={100} placeholder="Enter T1 reference"
+                <input type="text" className={`input ${t1Check.isLast ? 'border-red-400 focus:border-red-500' : ''}`}
+                  maxLength={100} placeholder="Enter T1 reference number"
                   value={retrieveForm.t1_validation_ref}
                   onChange={e => setRetrieveForm(f => ({ ...f, t1_validation_ref: e.target.value }))} />
               </div>
             )}
+
             {(parseInt(retrieveRow.overstay_days) || 0) > 0 && (
               <div className="rounded-lg p-3 border border-amber-200 bg-amber-50">
                 <p className="text-sm text-amber-800">
@@ -381,7 +425,7 @@ export default function RetrievalsPage() {
         )}
       </Modal>
 
-      {/* ── Return to Outstation ────────────────────────────────────────── */}
+      {/* ── Return to Outstation ─────────────────────────────────────────── */}
       <Modal isOpen={!!outstationRow} onClose={() => setOutstationRow(null)} title="Return to Outstation"
         footer={
           <>
@@ -410,13 +454,13 @@ export default function RetrievalsPage() {
               onChange={e => setOutstationForm(f => ({ ...f, archive_reason: e.target.value }))} />
           </div>
           <div className="rounded-lg p-3 border border-amber-200 bg-amber-50 text-xs text-amber-700">
-            Device will be set to PENDING at the selected DP. The retrieval record will be archived (invoices preserved).
+            Device will be set to PENDING at the selected DP. The retrieval record will be archived — invoices are preserved.
           </div>
         </div>
       </Modal>
 
-      {/* ── Generate Overdue Bill ────────────────────────────────────────── */}
-      <Modal isOpen={!!billRow} onClose={() => setBillRow(null)} title="Generate Overdue Bill"
+      {/* ── Generate Overdue Bill ─────────────────────────────────────────── */}
+      <Modal isOpen={!!billRow} onClose={() => setBillRow(null)} title="Generate Overdue Bill" size="lg"
         footer={
           <>
             <button onClick={() => setBillRow(null)} className="btn-secondary">Cancel</button>
@@ -426,33 +470,53 @@ export default function RetrievalsPage() {
           </>
         }>
         {billRow && (
-          <div className="space-y-3">
-            <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
-              <p><span className="text-gray-500">BOE:</span> <strong className="font-mono">{billRow.boe || '—'}</strong></p>
-              <p><span className="text-gray-500">Vehicle:</span> <strong>{billRow.vehicle_number || '—'}</strong></p>
-              <p><span className="text-gray-500">Device:</span> <strong className="font-mono">{billRow.device_identifier || '—'}</strong></p>
-              <p><span className="text-gray-500">Affixed:</span> <strong>{fmtDate(billRow.affixing_date)}</strong></p>
-              <p><span className="text-gray-500">Regime:</span> <strong>{billRow.regime || '—'}</strong></p>
-              <p><span className="text-gray-500">Route type:</span> <strong>{billRow.long_route_id ? 'Long (2-day grace)' : 'Short (1-day grace)'}</strong></p>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 bg-gray-50 rounded-lg p-4 text-sm">
+              <Field label="Reference #" value="OVR-{auto-generated}" />
+              <Field label="BOE / SAD No." value={[billRow.boe, billRow.sad_number].filter(Boolean).join(' / ')} />
+              <Field label="Device ID" value={billRow.device_identifier} />
+              <Field label="Vehicle Number" value={billRow.vehicle_number} />
+              <Field label="Driver Name" value={billRow.driver_name} />
+              <Field label="Agent / Agency" value={billRow.agency} />
+              <Field label="Allocation Point" value={billRow.allocation_point_name} />
+              <Field label="Destination" value={billRow.destination_name} />
+              <Field label="Route Type" value={billRow.long_route_id ? 'Long Route (2-day grace)' : 'Short Route (1-day grace)'} />
+              <Field label="Regime" value={billRow.regime} />
+              <Field label="Penalty Rate" value="GMD 1,000 / day" />
+              <Field label="Affixing Date" value={fmtDate(billRow.affixing_date)} />
             </div>
+
             <div className="rounded-lg p-4 border border-red-200 bg-red-50 text-center">
-              <p className="text-sm text-red-700 mb-1">Overstay to Bill</p>
+              <p className="text-sm text-red-700 mb-1">Total Overstay Charge</p>
               <p className="text-3xl font-bold text-red-700">{billRow.overstay_days} day(s)</p>
-              <p className="text-lg font-semibold text-red-800 mt-1">
+              <p className="text-xl font-semibold text-red-800 mt-1">
                 GMD {Number((billRow.overstay_days || 0) * 1000).toLocaleString()}
               </p>
-              <p className="text-xs text-red-600 mt-1">Rate: GMD 1,000 / day</p>
+              <p className="text-xs text-red-600 mt-1">Rate: GMD 1,000 per day</p>
+            </div>
+
+            <div>
+              <label className="label">
+                Consignee
+                <span className="ml-2 text-xs font-semibold text-blue-600">Editable — verify before generating</span>
+              </label>
+              <input type="text" className="input border-blue-300 focus:border-blue-500"
+                placeholder="Enter consignee name…"
+                value={billConsignee}
+                onChange={e => setBillConsignee(e.target.value)} />
             </div>
           </div>
         )}
       </Modal>
 
-      {/* ── Waiver ──────────────────────────────────────────────────────── */}
+      {/* ── Waiver ───────────────────────────────────────────────────────── */}
       <Modal isOpen={!!waiverRow} onClose={() => { setWaiverRow(null); setWaiverReason(''); }} title="Admin Waiver"
         footer={
           <>
             <button onClick={() => { setWaiverRow(null); setWaiverReason(''); }} className="btn-secondary">Cancel</button>
-            <button onClick={handleWaiver} disabled={busy || !waiverReason.trim()} className="btn-danger">
+            <button onClick={handleWaiver}
+              disabled={busy || waiverReason.trim().length < 10}
+              className="btn-danger">
               {busy ? 'Waiving…' : 'Confirm Waiver'}
             </button>
           </>
@@ -468,16 +532,22 @@ export default function RetrievalsPage() {
               </p>
             </div>
             <div>
-              <label className="label">Waiver Reason <span className="text-red-500">*</span></label>
-              <textarea className="input" rows={3} placeholder="Enter reason for waiving overstay fees…"
+              <label className="label">
+                Waiver Reason <span className="text-red-500">*</span>
+                <span className="ml-2 text-xs text-gray-400">
+                  {waiverReason.trim().length}/10 min chars
+                  {waiverReason.trim().length >= 10 && ' ✓'}
+                </span>
+              </label>
+              <textarea className="input" rows={3} placeholder="Enter reason for waiving overstay fees (min 10 characters)…"
                 value={waiverReason} onChange={e => setWaiverReason(e.target.value)} />
             </div>
-            <p className="text-xs text-gray-400">This action is permanent. A waiver record will be logged.</p>
+            <p className="text-xs text-gray-400">This action is permanent. A waiver record will be logged for audit.</p>
           </div>
         )}
       </Modal>
 
-      {/* ── Approve Payment ─────────────────────────────────────────────── */}
+      {/* ── Approve Payment ──────────────────────────────────────────────── */}
       <Modal isOpen={!!payRow} onClose={() => { setPayRow(null); setPayForm({ receipt_number: '', finance_notes: '' }); }}
         title="Approve Payment"
         footer={
@@ -543,7 +613,7 @@ export default function RetrievalsPage() {
         )}
       </Modal>
 
-      {/* ── Overstay Devices Modal ───────────────────────────────────────── */}
+      {/* ── Overstay Devices Modal ────────────────────────────────────────── */}
       <Modal isOpen={overstayOpen} onClose={() => setOverstayOpen(false)} title="Overstay Devices" size="xl"
         footer={<button onClick={() => setOverstayOpen(false)} className="btn-secondary">Close</button>}>
         {overstayLoading ? (
@@ -581,7 +651,7 @@ export default function RetrievalsPage() {
         )}
       </Modal>
 
-      {/* ── Retrieval Report Modal ───────────────────────────────────────── */}
+      {/* ── Retrieval Report Modal ────────────────────────────────────────── */}
       <Modal isOpen={reportOpen} onClose={() => setReportOpen(false)} title="Device Retrieval Report" size="xl"
         footer={<button onClick={() => setReportOpen(false)} className="btn-secondary">Close</button>}>
         <div className="space-y-3">
@@ -598,45 +668,43 @@ export default function RetrievalsPage() {
             </div>
             <div>
               <label className="label">Retrieval Status</label>
-              <select className="input input-sm" value={reportFilters.retrieval_status}
+              <select className="input input-sm w-40" value={reportFilters.retrieval_status}
                 onChange={e => setReportFilters(f => ({ ...f, retrieval_status: e.target.value }))}>
                 <option value="">All</option>
                 <option value="NOT_RETRIEVED">Not Retrieved</option>
                 <option value="RETRIEVED">Retrieved</option>
-                <option value="RETURNED">Returned</option>
               </select>
             </div>
-            <button onClick={() => runReport(reportFilters)} className="btn-primary btn-sm">Apply</button>
+            <button className="btn-primary btn-sm" onClick={() => runReport()}>Run Report</button>
           </div>
           {reportLoading ? (
-            <div className="py-6 text-center text-gray-400">Loading report…</div>
+            <div className="py-8 text-center text-gray-400">Loading report…</div>
           ) : reportList.length === 0 ? (
-            <div className="py-6 text-center text-gray-400">No data for selected filters.</div>
+            <div className="py-6 text-center text-gray-400">No records found for selected filters.</div>
           ) : (
             <div className="overflow-x-auto max-h-96">
               <p className="text-xs text-gray-500 mb-2">{reportList.length} record(s)</p>
               <table className="min-w-full text-xs">
-                <thead className="bg-gray-50 sticky top-0">
-                  <tr>
-                    {['Affixing Date', 'BOE', 'SAD', 'Device', 'Vehicle', 'Station', 'Destination', 'Overstay', 'Amount', 'Payment', 'Retrieval'].map(h => (
-                      <th key={h} className="px-2 py-2 text-left font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                <thead>
+                  <tr className="bg-gray-50 sticky top-0">
+                    {['Date', 'Device', 'BOE', 'Vehicle', 'Station', 'Destination', 'Days', 'Amount', 'Payment', 'Retrieval'].map(h => (
+                      <th key={h} className="px-3 py-2 text-left font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {reportList.map(r => (
-                    <tr key={r.id} className="hover:bg-gray-50">
-                      <td className="px-2 py-1 whitespace-nowrap">{fmtDate(r.affixing_date)}</td>
-                      <td className="px-2 py-1 font-mono">{r.boe || '—'}</td>
-                      <td className="px-2 py-1 font-mono">{r.sad_number || '—'}</td>
-                      <td className="px-2 py-1 font-mono" style={{ color: '#1E2D7A' }}>{r.device_identifier || '—'}</td>
-                      <td className="px-2 py-1">{r.vehicle_number || '—'}</td>
-                      <td className="px-2 py-1">{r.allocation_point_name || '—'}</td>
-                      <td className="px-2 py-1">{r.destination_name || '—'}</td>
-                      <td className="px-2 py-1 font-bold text-red-700">{r.overstay_days || 0}d</td>
-                      <td className="px-2 py-1 font-semibold text-red-700">{fmtMoney(r.overstay_amount)}</td>
-                      <td className="px-2 py-1"><StatusBadge status={r.payment_status || 'PP'} /></td>
-                      <td className="px-2 py-1"><StatusBadge status={r.retrieval_status || 'NOT_RETRIEVED'} /></td>
+                  {reportList.map((r, i) => (
+                    <tr key={r.id || i} className="hover:bg-gray-50">
+                      <td className="px-3 py-2 whitespace-nowrap">{fmtDate(r.affixing_date)}</td>
+                      <td className="px-3 py-2 font-mono font-semibold" style={{ color: '#1E2D7A' }}>{r.device_identifier || '—'}</td>
+                      <td className="px-3 py-2 font-mono">{r.boe || '—'}</td>
+                      <td className="px-3 py-2">{r.vehicle_number || '—'}</td>
+                      <td className="px-3 py-2">{r.allocation_point_name || '—'}</td>
+                      <td className="px-3 py-2">{r.destination_name || '—'}</td>
+                      <td className="px-3 py-2 text-red-700 font-semibold">{r.overstay_days || 0}</td>
+                      <td className="px-3 py-2 text-red-700">{fmtMoney(r.overstay_amount)}</td>
+                      <td className="px-3 py-2"><StatusBadge status={r.payment_status || 'PP'} /></td>
+                      <td className="px-3 py-2"><StatusBadge status={r.retrieval_status || 'NOT_RETRIEVED'} /></td>
                     </tr>
                   ))}
                 </tbody>

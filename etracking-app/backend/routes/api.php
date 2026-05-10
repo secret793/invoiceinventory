@@ -123,6 +123,7 @@ $router->post('/api/device-retrievals/{id}/return-outstation',       [\App\Contr
 $router->post('/api/device-retrievals/{id}/waiver',                  [\App\Controllers\DeviceRetrievalController::class, 'waiver'],           ['auth']);
 $router->post('/api/device-retrievals/{id}/approve-payment',         [\App\Controllers\DeviceRetrievalController::class, 'approvePayment'],   ['auth']);
 $router->post('/api/device-retrievals/{id}/manual-overstay',         [\App\Controllers\DeviceRetrievalController::class, 'manualOverstayDays'],['auth']);
+$router->get('/api/device-retrievals/{id}/check-last-device',        [\App\Controllers\DeviceRetrievalController::class, 'checkLastDevice'],   ['auth']);
 
 // ── Monitoring ────────────────────────────────────────────────────────────────
 $router->get('/api/monitoring',                [\App\Controllers\MonitoringController::class, 'index'],   ['auth']);
@@ -146,6 +147,7 @@ $router->delete('/api/receipts/{id}', [\App\Controllers\ReceiptController::class
 $router->get('/api/receipts/{id}/pdf',[\App\Controllers\ReceiptController::class, 'pdf'],     ['auth']);
 
 // ── Invoices ──────────────────────────────────────────────────────────────────
+$router->get('/api/invoices',           [\App\Controllers\InvoiceController::class, 'index'],    ['auth']);
 $router->get('/api/invoices/{id}',      [\App\Controllers\InvoiceController::class, 'show'],     ['auth']);
 $router->post('/api/invoices/generate', [\App\Controllers\InvoiceController::class, 'generate'], ['auth']);
 $router->get('/api/invoices/{id}/pdf',  [\App\Controllers\InvoiceController::class, 'pdf'],      ['auth']);

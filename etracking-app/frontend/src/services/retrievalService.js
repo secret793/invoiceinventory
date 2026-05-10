@@ -8,7 +8,7 @@ export const retrievalService = {
   delete:            (id)          => api.delete(`/device-retrievals/${id}`).then(r => r.data),
   report:            (params = {}) => api.get('/device-retrievals/report', { params }).then(r => r.data.data),
   export:            (params = {}) => api.get('/device-retrievals/export', { params, responseType: 'blob' }),
-  generateInvoice:   (id)          => api.post(`/device-retrievals/${id}/generate-invoice`).then(r => r.data.data),
+  generateInvoice:   (id, data={}) => api.post(`/device-retrievals/${id}/generate-invoice`, data).then(r => r.data.data),
   invoice:           (id)          => api.get(`/device-retrievals/${id}/invoice`).then(r => r.data.data),
   retrieve:          (id, data)    => api.post(`/device-retrievals/${id}/retrieve`, data).then(r => r.data.data),
   returnOutstation:  (id, data)    => api.post(`/device-retrievals/${id}/return-outstation`, data).then(r => r.data.data),
@@ -17,4 +17,10 @@ export const retrievalService = {
   manualOverstay:    (id, data)    => api.post(`/device-retrievals/${id}/manual-overstay`, data).then(r => r.data.data),
   overstayDevices:   (params = {}) => api.get('/device-retrievals/overstay-devices', { params }).then(r => r.data.data),
   downloadInvoiceUrl:(id)          => `/api/device-retrievals/${id}/download-invoice`,
+  checkLastDevice:   (id)          => api.get(`/device-retrievals/${id}/check-last-device`).then(r => r.data.data),
+};
+
+export const invoiceService = {
+  list:  (params = {}) => api.get('/invoices', { params }).then(r => r.data),
+  show:  (id)          => api.get(`/invoices/${id}`).then(r => r.data.data),
 };

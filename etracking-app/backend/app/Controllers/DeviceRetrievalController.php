@@ -208,15 +208,36 @@ class DeviceRetrievalController
         Response::success(DeviceRetrieval::find($id), 'Device returned to outstation.');
     }
 
+    public function checkLastDevice(Request $req): void
+    {
+        $id        = (int) $req->param('id');
+        $retrieval = DeviceRetrieval::findOrFail($id);
+        $type      = strtoupper($retrieval['transaction_type'] ?? '');
+        $isSAD     = in_array($type, ['SAD', 'T1'], true);
+        $receiptId = isset($retrieval['receipt_id']) ? (int) $retrieval['receipt_id'] : null;
+        $isLast    = $isSAD && $receiptId
+            ? Receipt::isLastDeviceForReceipt($receiptId, $id)
+            : false;
+        Response::success([
+            'is_sad'         => $isSAD,
+            'is_last_device' => $isLast,
+            'receipt_id'     => $receiptId,
+        ]);
+    }
+
     public function generateInvoice(Request $req): void
     {
         $id        = (int) $req->param('id');
+        $body      = $req->json();
         $retrieval = DeviceRetrieval::findOrFail($id);
         $calc      = OverstayCalculatorService::calculate($retrieval);
 
         if ($calc['overstay_days'] < 1) {
             Response::error('No overstay days to bill.', 422);
         }
+
+        // Allow caller to override consignee (editable in the form)
+        $consignee = trim($body['consignee'] ?? '');
 
         DeviceRetrieval::update($id, [
             'overstay_days'   => $calc['overstay_days'],
@@ -227,6 +248,10 @@ class DeviceRetrievalController
 
         $existing    = \App\Models\Invoice::findByRetrieval($id);
         $invoiceData = \App\Models\Invoice::buildFromRetrieval($retrieval, $calc);
+
+        if ($consignee !== '') {
+            $invoiceData['consignee'] = $consignee;
+        }
 
         if ($existing) {
             $existingId = (int) $existing['id'];

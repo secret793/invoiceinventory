@@ -32,6 +32,7 @@ import ConfirmedAffixedPage   from './pages/confirmedAffixed/ConfirmedAffixedPag
 
 // Retrievals + Monitoring
 import RetrievalsPage  from './pages/retrievals/RetrievalsPage';
+import InvoicesPage    from './pages/retrievals/InvoicesPage';
 import MonitoringPage  from './pages/monitoring/MonitoringPage';
 
 // Receipts
@@ -93,6 +94,7 @@ export default function App() {
 
             {/* Retrievals + Monitoring */}
             <Route path="/device-retrievals" element={<RetrievalsPage />} />
+            <Route path="/invoices"          element={<InvoicesPage />} />
             <Route path="/monitoring"        element={<MonitoringPage />} />
 
             {/* Receipts */}
@@ -105,6 +107,8 @@ export default function App() {
             <Route path="/reports" element={<ReportsPage />} />
 
             {/* Configuration */}
+            <Route path="/config/distribution-points" element={<DistributionListPage />} />
+            <Route path="/config/allocation-points"   element={<AllocationListPage />} />
             <Route path="/config/routes"       element={<RoutesPage />} />
             <Route path="/config/long-routes"  element={<LongRoutesPage />} />
             <Route path="/config/regimes"      element={<RegimesPage />} />
