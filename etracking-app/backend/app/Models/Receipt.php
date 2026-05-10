@@ -14,6 +14,7 @@ class Receipt extends BaseModel
         $params = [];
 
         if (!empty($filters['allocation_point_id'])) { $where[] = 'r.allocation_point_id = ?'; $params[] = $filters['allocation_point_id']; }
+        if (!empty($filters['available']))            { $where[] = 'r.used > 0'; }
         if (!empty($filters['from'])) { $where[] = 'r.date >= ?'; $params[] = $filters['from'] . ' 00:00:00'; }
         if (!empty($filters['to']))   { $where[] = 'r.date <= ?'; $params[] = $filters['to']   . ' 23:59:59'; }
         if (!empty($filters['search'])) {

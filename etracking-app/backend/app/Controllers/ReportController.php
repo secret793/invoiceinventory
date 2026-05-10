@@ -26,32 +26,81 @@ class ReportController
         $to     = $req->query('to', '');
         $export = $req->query('export', '');
 
-        $where  = ['cal.allocation_point_id = ?'];
-        $params = [$apId];
-
-        if ($from)   { $where[] = 'cal.affixing_date >= ?'; $params[] = $from . ' 00:00:00'; }
-        if ($to)     { $where[] = 'cal.affixing_date <= ?'; $params[] = $to   . ' 23:59:59'; }
+        // ── Branch 1: confirmed_affixeds (pending dispatches not yet affixed) ──
+        $w1 = ['ca.allocation_point_id = ?'];
+        $p1 = [$apId];
+        if ($from)   { $w1[] = 'ca.date >= ?'; $p1[] = $from . ' 00:00:00'; }
+        if ($to)     { $w1[] = 'ca.date <= ?'; $p1[] = $to   . ' 23:59:59'; }
         if ($search) {
-            $where[]  = '(d.device_id ILIKE ? OR cal.boe ILIKE ? OR cal.vehicle_number ILIKE ?)';
-            $like     = "%{$search}%";
-            $params[] = $like; $params[] = $like; $params[] = $like;
+            $like  = "%{$search}%";
+            $w1[]  = '(d1.device_id ILIKE ? OR ca.boe ILIKE ? OR ca.vehicle_number ILIKE ?)';
+            $p1[]  = $like; $p1[] = $like; $p1[] = $like;
         }
+        $ws1 = 'WHERE ' . implode(' AND ', $w1);
 
-        $wStr = 'WHERE ' . implode(' AND ', $where);
+        // ── Branch 2: confirmed_affix_logs (historical / affixed records) ──────
+        $w2 = ['cal.allocation_point_id = ?'];
+        $p2 = [$apId];
+        if ($from)   { $w2[] = 'cal.affixing_date >= ?'; $p2[] = $from . ' 00:00:00'; }
+        if ($to)     { $w2[] = 'cal.affixing_date <= ?'; $p2[] = $to   . ' 23:59:59'; }
+        if ($search) {
+            $like  = "%{$search}%";
+            $w2[]  = '(d2.device_id ILIKE ? OR cal.boe ILIKE ? OR cal.vehicle_number ILIKE ?)';
+            $p2[]  = $like; $p2[] = $like; $p2[] = $like;
+        }
+        $ws2 = 'WHERE ' . implode(' AND ', $w2);
+
         $rows = Database::query(
-            "SELECT cal.*, d.device_id as device_identifier,
-                    ap.name as allocation_point_name,
-                    dest.name as destination_name,
-                    r.name as route_name, lr.name as long_route_name
+            "SELECT
+                ca.id, ca.device_id, ca.boe, ca.sad_number, ca.transaction_type,
+                ca.vehicle_number, ca.truck_number, ca.driver_name,
+                ca.regime, ca.destination, ca.destination_id,
+                ca.route_id, ca.long_route_id, ca.manifest_date,
+                ca.agency, ca.agent_contact, ca.receipt_id,
+                ca.date         AS dispatch_date,
+                ca.date         AS affixing_date,
+                ca.status,
+                ca.allocation_point_id,
+                d1.device_id    AS device_identifier,
+                ap1.name        AS allocation_point_name,
+                dest1.name      AS destination_name,
+                r1.name         AS route_name,
+                lr1.name        AS long_route_name
+             FROM confirmed_affixeds ca
+             LEFT JOIN devices d1            ON ca.device_id          = d1.id
+             LEFT JOIN allocation_points ap1 ON ca.allocation_point_id = ap1.id
+             LEFT JOIN destinations dest1    ON ca.destination_id      = dest1.id
+             LEFT JOIN routes r1             ON ca.route_id            = r1.id
+             LEFT JOIN long_routes lr1       ON ca.long_route_id       = lr1.id
+             {$ws1}
+
+             UNION ALL
+
+             SELECT
+                cal.id, cal.device_id, cal.boe, NULL AS sad_number, NULL AS transaction_type,
+                cal.vehicle_number, NULL AS truck_number, NULL AS driver_name,
+                NULL AS regime, NULL AS destination, cal.destination_id,
+                cal.route_id, cal.long_route_id, NULL AS manifest_date,
+                NULL AS agency, NULL AS agent_contact, NULL AS receipt_id,
+                cal.affixing_date AS dispatch_date,
+                cal.affixing_date AS affixing_date,
+                cal.status,
+                cal.allocation_point_id,
+                d2.device_id    AS device_identifier,
+                ap2.name        AS allocation_point_name,
+                dest2.name      AS destination_name,
+                r2.name         AS route_name,
+                lr2.name        AS long_route_name
              FROM confirmed_affix_logs cal
-             LEFT JOIN devices d          ON cal.device_id          = d.id
-             LEFT JOIN allocation_points ap ON cal.allocation_point_id = ap.id
-             LEFT JOIN destinations dest  ON cal.destination_id      = dest.id
-             LEFT JOIN routes r           ON cal.route_id            = r.id
-             LEFT JOIN long_routes lr     ON cal.long_route_id       = lr.id
-             {$wStr}
-             ORDER BY cal.affixing_date DESC",
-            $params
+             LEFT JOIN devices d2            ON cal.device_id          = d2.id
+             LEFT JOIN allocation_points ap2 ON cal.allocation_point_id = ap2.id
+             LEFT JOIN destinations dest2    ON cal.destination_id      = dest2.id
+             LEFT JOIN routes r2             ON cal.route_id            = r2.id
+             LEFT JOIN long_routes lr2       ON cal.long_route_id       = lr2.id
+             {$ws2}
+
+             ORDER BY dispatch_date DESC",
+            array_merge($p1, $p2)
         );
 
         if ($export === '1') {

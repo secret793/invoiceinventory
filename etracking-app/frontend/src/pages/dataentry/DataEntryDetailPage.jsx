@@ -60,7 +60,8 @@ export default function DataEntryDetailPage() {
 
   const [ap, setAp]           = useState(null);
   const [devices, setDevices] = useState([]);
-  const [receipts, setReceipts] = useState([]);
+  const [receipts, setReceipts]       = useState([]);   // AP-scoped, all (for "View Receipts" modal)
+  const [allReceipts, setAllReceipts] = useState([]);   // global, used > 0 (for dispatch dropdown)
   const [routes, setRoutes]   = useState([]);
   const [longRoutes, setLongRoutes] = useState([]);
   const [regimes, setRegimes] = useState([]);
@@ -91,6 +92,15 @@ export default function DataEntryDetailPage() {
       const { data } = await api.get('/settings/exchange-rate');
       setExchangeRate(data.data?.rate ?? 74.07);
     } catch { /* fallback stays 74.07 */ }
+  };
+
+  // ─── Load globally available receipts for dispatch dropdown ───────────────
+  // No AP filter — shows ALL receipts with used > 0 across the system
+  const loadAvailableReceipts = async () => {
+    try {
+      const { data } = await api.get('/receipts', { params: { available: 1, per_page: 500 } });
+      setAllReceipts(data?.data || []);
+    } catch { /* silent — dispatch dropdown stays empty */ }
   };
 
   // ─── Pricing auto-calculation ─────────────────────────────────────────────
@@ -167,6 +177,7 @@ export default function DataEntryDetailPage() {
 
   useEffect(() => {
     loadExchangeRate();
+    loadAvailableReceipts();
     load();
   }, [id, statusFilter]);
 
@@ -198,7 +209,7 @@ export default function DataEntryDetailPage() {
 
   // ─── Receipt auto-fill on dispatch ───────────────────────────────────────
   const handleReceiptSelect = (receiptId) => {
-    const r = receipts.find(rc => String(rc.id) === String(receiptId));
+    const r = allReceipts.find(rc => String(rc.id) === String(receiptId));
     if (!r) { setDispatchForm(f => ({ ...f, receipt_id: receiptId })); return; }
     const avail = parseInt(r.used) ?? 0;
     if (avail <= 0) {
@@ -235,7 +246,7 @@ export default function DataEntryDetailPage() {
 
     setDispatchSaving(true);
     try {
-      const selectedReceipt = receipts.find(r => String(r.id) === String(dispatchForm.receipt_id));
+      const selectedReceipt = allReceipts.find(r => String(r.id) === String(dispatchForm.receipt_id));
       const selectedRegime  = regimes.find(r => String(r.id) === String(dispatchForm.regime_id));
       const selectedDest    = destinations.find(d => String(d.id) === String(dispatchForm.destination_id));
 
@@ -261,7 +272,8 @@ export default function DataEntryDetailPage() {
       setShowDispatch(false);
       setSelectedDevices([]);
       setDispatchForm(BLANK_DISPATCH);
-      load();
+      load();                    // reload devices list (dispatched devices disappear)
+      loadAvailableReceipts();   // reload receipt counters (used decremented)
     } catch (err) { notify.error(err.response?.data?.message || err.message); }
     finally { setDispatchSaving(false); }
   };
@@ -296,7 +308,7 @@ export default function DataEntryDetailPage() {
     { header: 'Serial',    key: 'serial_number',  render: v => v || '—' },
   ];
 
-  const selectedReceipt = receipts.find(r => String(r.id) === String(dispatchForm.receipt_id));
+  const selectedReceipt = allReceipts.find(r => String(r.id) === String(dispatchForm.receipt_id));
 
   // ─── Pricing display helpers ───────────────────────────────────────────────
   const hasRoutePricing = !!(receiptForm.route_id || receiptForm.long_route_id);
@@ -700,12 +712,17 @@ export default function DataEntryDetailPage() {
               <label className="label">Select Receipt <span className="text-red-500">*</span></label>
               <select required className="input" value={dispatchForm.receipt_id}
                 onChange={e => handleReceiptSelect(e.target.value)}>
-                <option value="">Select receipt…</option>
-                {receipts.filter(r => (parseInt(r.used) ?? 0) > 0).map(r => (
-                  <option key={r.id} value={r.id}>
-                    {r.receipt_number} — {r.transaction_type} — {r.sad_number || 'No SAD'} — {r.used ?? '?'}/{r.moving_trucks ?? '?'} available
-                  </option>
-                ))}
+                <option value="">Select receipt… ({allReceipts.length} available globally)</option>
+                {allReceipts.map(r => {
+                  const used  = parseInt(r.used) ?? 0;
+                  const total = parseInt(r.moving_trucks) ?? 0;
+                  const color = used === 0 ? 'red' : used <= Math.ceil(total * 0.25) ? 'darkorange' : 'green';
+                  return (
+                    <option key={r.id} value={r.id} style={{ color }}>
+                      [{r.used}/{r.moving_trucks}] {r.receipt_number} — {r.transaction_type} — {r.sad_number || 'No SAD'} — {r.station_name || 'Unknown AP'}
+                    </option>
+                  );
+                })}
               </select>
               {selectedReceipt && (
                 <div className="mt-2 text-xs rounded p-2 grid grid-cols-3 gap-2" style={{ background: '#f0fdf4', color: '#166534' }}>

@@ -50,6 +50,7 @@ class ReceiptController
         $perPage = min(100, max(1, (int) $req->query('per_page', 25)));
         $filters = [
             'allocation_point_id' => $req->query('allocation_point_id'),
+            'available'           => $req->query('available'),   // '1' → only used > 0
             'from'                => $req->query('from'),
             'to'                  => $req->query('to'),
             'search'              => $req->query('search'),

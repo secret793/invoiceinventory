@@ -71,16 +71,65 @@ class ConfirmedAffixedController
     {
         $raw = $req->json();
 
-        if (empty($raw['boe'])) {
-            Response::error('boe is required', 422);
-        }
-        if (empty($raw['vehicle_number'])) {
-            Response::error('vehicle_number is required', 422);
-        }
+        if (empty($raw['boe']))            Response::error('boe is required', 422);
+        if (empty($raw['vehicle_number'])) Response::error('vehicle_number is required', 422);
+        if (empty($raw['device_id']))      Response::error('device_id is required', 422);
 
         $data = self::sanitize($raw);
-        $row  = ConfirmedAffixed::create($data);
-        Response::success($row, 'Confirmed affixed record created', 201);
+
+        // ── Guard: receipt must exist and still have quota ─────────────────
+        if (!empty($data['receipt_id'])) {
+            $receipt = Database::queryOne(
+                'SELECT id, receipt_number, used FROM receipts WHERE id = ?',
+                [$data['receipt_id']]
+            );
+            if (!$receipt) {
+                Response::error('Receipt not found', 422);
+            }
+            if ((int) $receipt['used'] <= 0) {
+                Response::error("Receipt {$receipt['receipt_number']} is fully used (0 slots remaining)", 422);
+            }
+        }
+
+        // ── Guard: device must not already be dispatched ──────────────────
+        $already = Database::queryOne(
+            'SELECT id FROM assign_to_agents WHERE device_id = ?',
+            [$data['device_id']]
+        );
+        if ($already) {
+            Response::error('This device is already dispatched. Return it before dispatching again.', 422);
+        }
+
+        // ── Create ConfirmedAffixed record ────────────────────────────────
+        $row = ConfirmedAffixed::create($data);
+
+        // ── Create assign_to_agents record (dispatch twin) ────────────────
+        Database::execute(
+            'INSERT INTO assign_to_agents (device_id, allocation_point_id, receipt_id, date, created_at, updated_at)
+             VALUES (?, ?, ?, ?, NOW(), NOW())',
+            [
+                $data['device_id'],
+                $data['allocation_point_id'] ?? null,
+                $data['receipt_id']          ?? null,
+                $data['date']                ?? date('Y-m-d H:i:s'),
+            ]
+        );
+
+        // ── Decrement receipt used counter ────────────────────────────────
+        if (!empty($data['receipt_id'])) {
+            Database::execute(
+                'UPDATE receipts SET used = GREATEST(0, used - 1), updated_at = NOW() WHERE id = ?',
+                [$data['receipt_id']]
+            );
+        }
+
+        // ── Clear device from allocation point (device leaves the AP) ─────
+        Database::execute(
+            'UPDATE devices SET allocation_point_id = NULL, updated_at = NOW() WHERE id = ?',
+            [$data['device_id']]
+        );
+
+        Response::success($row, 'Device dispatched successfully', 201);
     }
 
     public function pickForAffixing(Request $req): void
@@ -155,7 +204,7 @@ class ConfirmedAffixedController
 
         if (!$note) Response::error('return_note is required');
 
-        // Update related monitoring (use parameterised values — PostgreSQL rejects double-quoted literals)
+        // Update related monitoring
         Database::execute(
             "UPDATE monitorings SET note = ?, retrieval_status = 'RETURNED', updated_at = NOW() WHERE device_id = ?",
             [$note, $ca['device_id']]
@@ -169,10 +218,36 @@ class ConfirmedAffixedController
             [$note, $ca['device_id']]
         );
 
-        // Delete confirmed affixed
+        // ── Restore receipt used counter (Eloquent observer equivalent) ───
+        $ata = Database::queryOne(
+            'SELECT receipt_id FROM assign_to_agents WHERE device_id = ? ORDER BY id DESC LIMIT 1',
+            [$ca['device_id']]
+        );
+        if ($ata && !empty($ata['receipt_id'])) {
+            Database::execute(
+                'UPDATE receipts SET used = used + 1, updated_at = NOW() WHERE id = ?',
+                [$ata['receipt_id']]
+            );
+        }
+
+        // ── Delete assign_to_agents record ────────────────────────────────
+        Database::execute(
+            'DELETE FROM assign_to_agents WHERE device_id = ?',
+            [$ca['device_id']]
+        );
+
+        // ── Restore device to original allocation point (status → ONLINE) ─
+        if (!empty($ca['allocation_point_id'])) {
+            Database::execute(
+                "UPDATE devices SET allocation_point_id = ?, status = 'ONLINE', updated_at = NOW() WHERE id = ?",
+                [$ca['allocation_point_id'], $ca['device_id']]
+            );
+        }
+
+        // ── Delete confirmed affixed record ────────────────────────────────
         ConfirmedAffixed::delete($id);
 
-        Response::success(null, 'Data returned successfully');
+        Response::success(null, 'Data returned successfully. Device restored to allocation point.');
     }
 
     public function report(Request $req): void
