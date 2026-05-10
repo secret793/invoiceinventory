@@ -39,6 +39,8 @@ class ReportController
         $ws1 = 'WHERE ' . implode(' AND ', $w1);
 
         // ── Branch 2: confirmed_affix_logs (historical / affixed records) ──────
+        // Note: this table only has: id, device_id, boe, vehicle_number,
+        //   allocation_point_id, affixing_date, affixed_by, status
         $w2 = ['cal.allocation_point_id = ?'];
         $p2 = [$apId];
         if ($from)   { $w2[] = 'cal.affixing_date >= ?'; $p2[] = $from . ' 00:00:00'; }
@@ -79,8 +81,8 @@ class ReportController
              SELECT
                 cal.id, cal.device_id, cal.boe, NULL AS sad_number, NULL AS transaction_type,
                 cal.vehicle_number, NULL AS truck_number, NULL AS driver_name,
-                NULL AS regime, NULL AS destination, cal.destination_id,
-                cal.route_id, cal.long_route_id, NULL AS manifest_date,
+                NULL AS regime, NULL AS destination, NULL AS destination_id,
+                NULL AS route_id, NULL AS long_route_id, NULL AS manifest_date,
                 NULL AS agency, NULL AS agent_contact, NULL AS receipt_id,
                 cal.affixing_date AS dispatch_date,
                 cal.affixing_date AS affixing_date,
@@ -88,15 +90,12 @@ class ReportController
                 cal.allocation_point_id,
                 d2.device_id    AS device_identifier,
                 ap2.name        AS allocation_point_name,
-                dest2.name      AS destination_name,
-                r2.name         AS route_name,
-                lr2.name        AS long_route_name
+                NULL            AS destination_name,
+                NULL            AS route_name,
+                NULL            AS long_route_name
              FROM confirmed_affix_logs cal
              LEFT JOIN devices d2            ON cal.device_id          = d2.id
              LEFT JOIN allocation_points ap2 ON cal.allocation_point_id = ap2.id
-             LEFT JOIN destinations dest2    ON cal.destination_id      = dest2.id
-             LEFT JOIN routes r2             ON cal.route_id            = r2.id
-             LEFT JOIN long_routes lr2       ON cal.long_route_id       = lr2.id
              {$ws2}
 
              ORDER BY dispatch_date DESC",

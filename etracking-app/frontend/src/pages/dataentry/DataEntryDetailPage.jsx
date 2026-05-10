@@ -159,7 +159,7 @@ export default function DataEntryDetailPage() {
     Promise.all([
       allocationService.get(id).catch(() => null),
       api.get('/devices', { params: { allocation_point_id: id, per_page: 200, status: statusFilter || undefined } }).catch(() => ({ data: { data: [] } })),
-      api.get('/receipts', { params: { allocation_point_id: id, per_page: 200 } }).catch(() => ({ data: { data: [] } })),
+      api.get('/receipts', { params: { per_page: 500 } }).catch(() => ({ data: { data: [] } })),
       api.get('/routes').catch(() => ({ data: { data: [] } })),
       api.get('/long-routes').catch(() => ({ data: { data: [] } })),
       api.get('/regimes').catch(() => ({ data: { data: [] } })),
@@ -638,12 +638,12 @@ export default function DataEntryDetailPage() {
 
       {/* ═══ RECEIPTS LIST MODAL ═════════════════════════════════════════════ */}
       <Modal isOpen={showReceipts} onClose={() => setShowReceipts(false)}
-        title="Generated Receipts" size="xl">
+        title={`All Receipts (${receipts.length})`} size="full">
         <div className="overflow-x-auto">
           <table className="min-w-full text-xs">
             <thead className="bg-gray-50">
               <tr>
-                {['Receipt No.', 'Date', 'SAD/Ref', 'Type', 'Route', 'Long Route',
+                {['Receipt No.', 'Allocation Point', 'Date', 'SAD/Ref', 'Type', 'Route', 'Long Route',
                   'Moving Trucks', 'Used/Avail', 'Unit GMD', 'Total GMD', 'Agent', 'Destination'].map(h => (
                   <th key={h} className="px-3 py-2 text-left font-semibold text-gray-600 whitespace-nowrap">{h}</th>
                 ))}
@@ -651,7 +651,7 @@ export default function DataEntryDetailPage() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
               {receipts.length === 0 ? (
-                <tr><td colSpan={12} className="text-center py-8 text-gray-400">No receipts found.</td></tr>
+                <tr><td colSpan={13} className="text-center py-8 text-gray-400">No receipts found.</td></tr>
               ) : receipts.map(r => {
                 const used = parseInt(r.used) ?? 0;
                 const total = parseInt(r.moving_trucks) ?? 0;
@@ -659,6 +659,7 @@ export default function DataEntryDetailPage() {
                 return (
                   <tr key={r.id} className="hover:bg-gray-50">
                     <td className="px-3 py-2 font-mono font-semibold" style={{ color: '#1E2D7A' }}>{r.receipt_number}</td>
+                    <td className="px-3 py-2 text-xs text-gray-600">{r.station_name || '—'}</td>
                     <td className="px-3 py-2 whitespace-nowrap">{r.date ? new Date(r.date).toLocaleDateString() : '—'}</td>
                     <td className="px-3 py-2 font-mono">{r.sad_number || '—'}</td>
                     <td className="px-3 py-2"><StatusBadge status={r.transaction_type || 'SAD'} /></td>
