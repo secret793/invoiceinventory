@@ -110,6 +110,9 @@ $router->get('/api/device-retrievals',                               [\App\Contr
 $router->post('/api/device-retrievals',                              [\App\Controllers\DeviceRetrievalController::class, 'store'],            ['auth']);
 $router->get('/api/device-retrievals/report',                        [\App\Controllers\DeviceRetrievalController::class, 'report'],           ['auth']);
 $router->get('/api/device-retrievals/export',                        [\App\Controllers\DeviceRetrievalController::class, 'exportReport'],     ['auth']);
+$router->get('/api/device-retrievals/report2',                       [\App\Controllers\DeviceRetrievalController::class, 'report2'],          ['auth']);
+$router->get('/api/device-retrievals/export2',                       [\App\Controllers\DeviceRetrievalController::class, 'exportReport2'],    ['auth']);
+$router->post('/api/device-retrievals/create-manual',                [\App\Controllers\DeviceRetrievalController::class, 'createManual'],     ['auth']);
 $router->get('/api/device-retrievals/overstay-devices',              [\App\Controllers\DeviceRetrievalController::class, 'overstayDevices'],  ['auth']);
 $router->get('/api/device-retrievals/{id}',                          [\App\Controllers\DeviceRetrievalController::class, 'show'],             ['auth']);
 $router->put('/api/device-retrievals/{id}',                          [\App\Controllers\DeviceRetrievalController::class, 'update'],           ['auth']);
@@ -202,7 +205,12 @@ $router->get('/api/roles/{id}',     [\App\Controllers\RoleController::class, 'sh
 $router->put('/api/roles/{id}',     [\App\Controllers\RoleController::class, 'update'],  ['auth']);
 $router->patch('/api/roles/{id}',   [\App\Controllers\RoleController::class, 'update'],  ['auth']);
 $router->delete('/api/roles/{id}',  [\App\Controllers\RoleController::class, 'destroy'], ['auth']);
-$router->get('/api/permissions',    [\App\Controllers\PermissionController::class, 'index'], ['auth']);
+$router->get('/api/permissions',              [\App\Controllers\PermissionController::class, 'index'],      ['auth']);
+$router->post('/api/permissions/auto-create', [\App\Controllers\PermissionController::class, 'autoCreate'], ['auth']);
+$router->post('/api/permissions',             [\App\Controllers\PermissionController::class, 'store'],      ['auth']);
+$router->put('/api/permissions/{id}',         [\App\Controllers\PermissionController::class, 'update'],     ['auth']);
+$router->patch('/api/permissions/{id}',       [\App\Controllers\PermissionController::class, 'update'],     ['auth']);
+$router->delete('/api/permissions/{id}',      [\App\Controllers\PermissionController::class, 'destroy'],    ['auth']);
 
 // ── Reports ───────────────────────────────────────────────────────────────────
 $router->get('/api/reports/dispatch/{id}',             [\App\Controllers\ReportController::class, 'dispatchReport'],         ['auth']);
