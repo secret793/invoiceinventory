@@ -8,7 +8,7 @@ class ConfirmedAffixed extends BaseModel
 {
     protected static string $table = 'confirmed_affixeds';
 
-    public static function listPaginated(int $page, int $perPage, array $filters = [], array $permittedApIds = []): array
+    public static function listPaginated(int $page, int $perPage, array $filters = [], array $permittedApIds = [], array $permittedDestIds = []): array
     {
         $where  = [];
         $params = [];
@@ -30,6 +30,11 @@ class ConfirmedAffixed extends BaseModel
             $places  = implode(',', array_fill(0, count($permittedApIds), '?'));
             $where[] = "ca.allocation_point_id IN ($places)";
             array_push($params, ...$permittedApIds);
+        }
+        if (!empty($permittedDestIds)) {
+            $places  = implode(',', array_fill(0, count($permittedDestIds), '?'));
+            $where[] = "ca.destination_id IN ($places)";
+            array_push($params, ...$permittedDestIds);
         }
 
         $whereStr = $where ? implode(' AND ', $where) : '';
