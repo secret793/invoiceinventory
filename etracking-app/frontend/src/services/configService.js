@@ -43,6 +43,10 @@ export const configService = {
     delete: (id)       => api.delete(`/roles/${id}`).then(r => r.data),
   },
   permissions: {
-    list: () => api.get('/permissions').then(r => r.data.data),
+    list:       ()              => api.get('/permissions').then(r => r.data.data),
+    create:     (data)          => api.post('/permissions', data).then(r => r.data.data),
+    update:     (id, data)      => api.put(`/permissions/${id}`, data).then(r => r.data.data),
+    delete:     (id)            => api.delete(`/permissions/${id}`).then(r => r.data),
+    autoCreate: (type, slug)    => api.post('/permissions/auto-create', { type, slug }).then(r => r.data),
   },
 };
