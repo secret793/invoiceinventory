@@ -120,22 +120,36 @@ class DeviceRetrievalController
             Response::error('Overstay bill must be paid or waived before device retrieval.', 422);
         }
 
-        $isSAD         = strtoupper($retrieval['transaction_type'] ?? '') === 'SAD';
-        $receiptId     = $retrieval['receipt_id'] ?? null;
-        $t1Ref         = $data['t1_validation_ref'] ?? null;
-        $isLastDevice  = $receiptId ? Receipt::isLastDeviceForReceipt((int) $receiptId, $id) : false;
+        $type          = strtoupper($retrieval['transaction_type'] ?? '');
+        $isSAD         = in_array($type, ['SAD', 'T1'], true);
+        $receiptId     = isset($retrieval['receipt_id']) ? (int) $retrieval['receipt_id'] : null;
+        $t1Ref         = trim($data['t1_validation_ref'] ?? '');
+        $receiptNum    = trim($data['receipt_number']    ?? '');
 
-        if ($isSAD && $isLastDevice && empty($t1Ref)) {
+        /* null receipt_id on a SAD record = legacy — treat as last device */
+        $isLastDevice  = $isSAD
+            ? ($receiptId ? Receipt::isLastDeviceForReceipt($receiptId, $id) : true)
+            : false;
+
+        if ($isSAD && $isLastDevice && $t1Ref === '') {
             Response::error('T1 Validation Reference is required for the last device on a SAD receipt.', 422);
+        }
+
+        $isPrivileged = PermissionService::isSuperAdmin($user)
+            || PermissionService::hasRole($user, 'Warehouse Manager');
+
+        if (!$isPrivileged && $overstayDays >= 1 && $receiptNum === '') {
+            Response::error('Receipt Number is required before retrieval when device is overdue.', 422);
         }
 
         Database::execute(
             "UPDATE device_retrievals
-             SET retrieval_status = 'RETRIEVED',
-                 t1_validation_ref = COALESCE(?, t1_validation_ref),
-                 updated_at = NOW()
+             SET retrieval_status    = 'RETRIEVED',
+                 t1_validation_ref   = COALESCE(NULLIF(?, ''), t1_validation_ref),
+                 receipt_number      = COALESCE(NULLIF(?, ''), receipt_number),
+                 updated_at          = NOW()
              WHERE id = ?",
-            [$t1Ref ?: null, $id]
+            [$t1Ref, $receiptNum, $id]
         );
 
         Database::execute(
@@ -215,8 +229,9 @@ class DeviceRetrievalController
         $type      = strtoupper($retrieval['transaction_type'] ?? '');
         $isSAD     = in_array($type, ['SAD', 'T1'], true);
         $receiptId = isset($retrieval['receipt_id']) ? (int) $retrieval['receipt_id'] : null;
-        $isLast    = $isSAD && $receiptId
-            ? Receipt::isLastDeviceForReceipt($receiptId, $id)
+        /* null receipt_id on SAD = legacy record → treat as last device */
+        $isLast = $isSAD
+            ? ($receiptId ? Receipt::isLastDeviceForReceipt($receiptId, $id) : true)
             : false;
         Response::success([
             'is_sad'         => $isSAD,
@@ -236,8 +251,10 @@ class DeviceRetrievalController
             Response::error('No overstay days to bill.', 422);
         }
 
-        // Allow caller to override consignee (editable in the form)
-        $consignee = trim($body['consignee'] ?? '');
+        // Allow caller to override editable fields from the form
+        $consignee     = trim($body['consignee']      ?? '');
+        $referenceDate = trim($body['reference_date'] ?? '');
+        $notes         = trim($body['notes']          ?? '');
 
         DeviceRetrieval::update($id, [
             'overstay_days'   => $calc['overstay_days'],
@@ -249,9 +266,9 @@ class DeviceRetrievalController
         $existing    = \App\Models\Invoice::findByRetrieval($id);
         $invoiceData = \App\Models\Invoice::buildFromRetrieval($retrieval, $calc);
 
-        if ($consignee !== '') {
-            $invoiceData['consignee'] = $consignee;
-        }
+        if ($consignee !== '')     $invoiceData['consignee']      = $consignee;
+        if ($referenceDate !== '') $invoiceData['reference_date'] = $referenceDate;
+        if ($notes !== '')         $invoiceData['notes']          = $notes;
 
         if ($existing) {
             $existingId = (int) $existing['id'];
@@ -344,8 +361,8 @@ HTML;
         $data = $req->json();
         $user = $req->user();
 
-        if (!PermissionService::isSuperAdmin($user)) {
-            Response::error('Only Super Admin can waive overstay fees.', 403);
+        if (!PermissionService::isSuperAdmin($user) && !PermissionService::hasRole($user, 'Admin')) {
+            Response::error('Only Super Admin or Admin can waive overstay fees.', 403);
         }
 
         $retrieval = DeviceRetrieval::findOrFail($id);
@@ -448,6 +465,7 @@ HTML;
         }
 
         $retrieval    = DeviceRetrieval::findOrFail($id);
+        $oldDays      = (int) ($retrieval['overstay_days'] ?? 0);
         $overstayDays = max(0, (int) ($data['overstay_days'] ?? 0));
         $overstayAmt  = $overstayDays * 1000;
 
@@ -457,39 +475,146 @@ HTML;
             'overdue_hours'   => $overstayDays * 24,
         ]);
 
-        Response::success(DeviceRetrieval::find($id), 'Overstay days updated.');
+        $deviceId = $retrieval['device_id'] ?? $id;
+        $msg = "Device {$deviceId}: Updated from {$oldDays} to {$overstayDays} days.";
+        Response::success(array_merge(DeviceRetrieval::find($id), ['old_days' => $oldDays]), $msg);
     }
 
     public function overstayDevices(Request $req): void
     {
         $filters = [
-            'retrieval_status' => $req->query('retrieval_status'),
+            'search'           => $req->query('search'),
+            'device_id'        => $req->query('device_id'),
+            'boe'              => $req->query('boe'),
+            'invoice_number'   => $req->query('invoice_number'),
+            'destination'      => $req->query('destination'),
+            'allocation_point' => $req->query('allocation_point'),
             'payment_status'   => $req->query('payment_status'),
+            'amount_min'       => $req->query('amount_min'),
+            'amount_max'       => $req->query('amount_max'),
             'overstay_min'     => $req->query('overstay_min'),
+            'overstay_max'     => $req->query('overstay_max'),
+            'from'             => $req->query('from'),
+            'to'               => $req->query('to'),
+            'sort_by'          => $req->query('sort_by', 'dr.overstay_days'),
+            'sort_dir'         => $req->query('sort_dir', 'DESC'),
         ];
-        Response::success(DeviceRetrieval::overstayList($filters));
+        Response::success([
+            'list'  => DeviceRetrieval::overstayList($filters),
+            'stats' => DeviceRetrieval::overstayStats(),
+        ]);
     }
 
+    /* ── Report #1 — reads from device_retrieval_logs audit table ──────── */
     public function report(Request $req): void
     {
         $filters = [
             'search'              => $req->query('search'),
+            'device_id'           => $req->query('device_id'),
+            'boe'                 => $req->query('boe'),
+            'vehicle_number'      => $req->query('vehicle_number'),
             'from'                => $req->query('from'),
             'to'                  => $req->query('to'),
+            'start_time'          => $req->query('start_time'),
+            'end_time'            => $req->query('end_time'),
             'retrieval_status'    => $req->query('retrieval_status'),
+            'action_type'         => $req->query('action_type'),
             'allocation_point_id' => $req->query('allocation_point_id'),
+            'sort_by'             => $req->query('sort_by', 'l.created_at'),
+            'sort_dir'            => $req->query('sort_dir', 'DESC'),
+            'page'                => (int) $req->query('page', 1),
+            'per_page'            => 25,
         ];
-        Response::success(DeviceRetrieval::reportData($filters));
+        Response::success(DeviceRetrieval::reportAuditLog($filters));
     }
 
+    /* ── Report #1 CSV export ───────────────────────────────────────────── */
     public function exportReport(Request $req): void
     {
         $filters = [
+            'search'           => $req->query('search'),
+            'device_id'        => $req->query('device_id'),
+            'boe'              => $req->query('boe'),
+            'vehicle_number'   => $req->query('vehicle_number'),
             'from'             => $req->query('from'),
             'to'               => $req->query('to'),
             'retrieval_status' => $req->query('retrieval_status'),
+            'action_type'      => $req->query('action_type'),
+            'per_page'         => 5000,
+            'page'             => 1,
         ];
-        $rows = DeviceRetrieval::reportData($filters);
-        \App\Services\ExportService::streamCsv($rows, 'device-retrieval-report-' . date('Ymd') . '.csv');
+        $result = DeviceRetrieval::reportAuditLog($filters);
+        \App\Services\ExportService::streamCsv(
+            $result['data'],
+            'device-retrieval-audit-' . date('Ymd') . '.csv'
+        );
+    }
+
+    /* ── Report #2 — financial/compliance view (retrieval_status required) */
+    public function report2(Request $req): void
+    {
+        $retrieval_status = $req->query('retrieval_status');
+        if (empty($retrieval_status)) {
+            Response::error('Retrieval Status is required for Report #2.', 422);
+        }
+        $filters = [
+            'search'              => $req->query('search'),
+            'device_id'           => $req->query('device_id'),
+            'boe'                 => $req->query('boe'),
+            'vehicle_number'      => $req->query('vehicle_number'),
+            'retrieval_status'    => $retrieval_status,
+            'from'                => $req->query('from'),
+            'to'                  => $req->query('to'),
+            'start_time'          => $req->query('start_time'),
+            'end_time'            => $req->query('end_time'),
+            'action_type'         => $req->query('action_type'),
+            'allocation_point_id' => $req->query('allocation_point_id'),
+            'sort_by'             => $req->query('sort_by', 'l.created_at'),
+            'sort_dir'            => $req->query('sort_dir', 'DESC'),
+            'page'                => (int) $req->query('page', 1),
+            'per_page'            => 25,
+        ];
+        Response::success(DeviceRetrieval::reportAuditLog($filters));
+    }
+
+    /* ── Report #2 CSV export ───────────────────────────────────────────── */
+    public function exportReport2(Request $req): void
+    {
+        $retrieval_status = $req->query('retrieval_status');
+        if (empty($retrieval_status)) {
+            Response::error('Retrieval Status is required for Report #2 export.', 422);
+        }
+        $filters = [
+            'retrieval_status' => $retrieval_status,
+            'search'           => $req->query('search'),
+            'device_id'        => $req->query('device_id'),
+            'boe'              => $req->query('boe'),
+            'vehicle_number'   => $req->query('vehicle_number'),
+            'from'             => $req->query('from'),
+            'to'               => $req->query('to'),
+            'action_type'      => $req->query('action_type'),
+            'per_page'         => 5000,
+            'page'             => 1,
+        ];
+        $result = DeviceRetrieval::reportAuditLog($filters);
+        \App\Services\ExportService::streamCsv(
+            $result['data'],
+            'device-retrieval-report2-' . date('Ymd') . '.csv'
+        );
+    }
+
+    /* ── New Device Retrieval — manual create ───────────────────────────── */
+    public function createManual(Request $req): void
+    {
+        $data = $req->json();
+        $required = ['device_id', 'boe', 'affixing_date', 'transaction_type'];
+        foreach ($required as $field) {
+            if (empty($data[$field])) {
+                Response::error("Field '{$field}' is required.", 422);
+            }
+        }
+        $data['retrieval_status'] = 'NOT_RETRIEVED';
+        $row = DeviceRetrieval::create($data);
+        Response::success($row, 'Retrieval record created manually.', 201);
     }
 }
