@@ -49,8 +49,9 @@ class ConfirmedAffixedController
         $page    = max(1, (int) $req->query('page', 1));
         $perPage = min(100, max(1, (int) $req->query('per_page', 25)));
 
-        $filters       = ['status' => $req->query('status'), 'search' => $req->query('search')];
-        $permittedApIds = [];
+        $filters        = ['status' => $req->query('status'), 'search' => $req->query('search')];
+        $permittedApIds   = [];
+        $permittedDestIds = [];
 
         // Non-admin: filter by permitted allocation points
         if (!PermissionService::isSuperAdmin($user) && !PermissionService::hasRole($user, 'Warehouse Manager')) {
@@ -58,7 +59,19 @@ class ConfirmedAffixedController
             if ($permitted !== null) $permittedApIds = $permitted;
         }
 
-        $result = ConfirmedAffixed::listPaginated($page, $perPage, $filters, $permittedApIds);
+        // Affixing Officers + Read Only Tracker: also filter by destination permissions
+        if (PermissionService::hasAnyRole($user, ['Affixing Officer', 'Read Only Tracker Officer'])
+            && !PermissionService::isSuperAdmin($user)
+            && !PermissionService::hasRole($user, 'Warehouse Manager')) {
+            $destIds = PermissionService::filterDestinationIds($user);
+            // null = no filter; empty array = no permissions, force zero results
+            $permittedDestIds = $destIds ?? [];
+            if ($destIds !== null && count($destIds) === 0) {
+                $permittedDestIds = [-1]; // forces WHERE destination_id IN (-1) → 0 rows
+            }
+        }
+
+        $result = ConfirmedAffixed::listPaginated($page, $perPage, $filters, $permittedApIds, $permittedDestIds);
         Response::paginated($result['data'], $result['total'], $page, $perPage);
     }
 
