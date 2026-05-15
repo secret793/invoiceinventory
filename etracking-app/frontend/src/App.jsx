@@ -44,6 +44,9 @@ import NotificationsPage from './pages/notifications/NotificationsPage';
 // Reports
 import ReportsPage from './pages/reports/ReportsPage';
 
+// Finance
+import FinanceDispatchPage from './pages/finance/FinanceDispatchPage';
+
 // Configuration
 import RoutesPage      from './pages/config/RoutesPage';
 import LongRoutesPage  from './pages/config/LongRoutesPage';
@@ -99,6 +102,9 @@ export default function App() {
 
             {/* Receipts */}
             <Route path="/receipts" element={<ReceiptsPage />} />
+
+            {/* Finance */}
+            <Route path="/finance/dispatch-records" element={<FinanceDispatchPage />} />
 
             {/* Notifications */}
             <Route path="/notifications" element={<NotificationsPage />} />
