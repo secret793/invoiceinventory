@@ -53,8 +53,9 @@ import LongRoutesPage  from './pages/config/LongRoutesPage';
 import RegimesPage     from './pages/config/RegimesPage';
 import DestinationsPage from './pages/config/DestinationsPage';
 import UsersPage       from './pages/config/UsersPage';
-import RolesPage       from './pages/config/RolesPage';
-import SettingsPage    from './pages/config/SettingsPage';
+import RolesPage        from './pages/config/RolesPage';
+import PermissionsPage  from './pages/config/PermissionsPage';
+import SettingsPage     from './pages/config/SettingsPage';
 
 // 404
 import NotFoundPage from './pages/NotFoundPage';
@@ -121,6 +122,7 @@ export default function App() {
             <Route path="/config/destinations" element={<DestinationsPage />} />
             <Route path="/config/users"        element={<UsersPage />} />
             <Route path="/config/roles"        element={<RolesPage />} />
+            <Route path="/config/permissions"  element={<PermissionsPage />} />
             <Route path="/config/settings"     element={<SettingsPage />} />
           </Route>
 
