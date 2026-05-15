@@ -537,6 +537,8 @@ ON CONFLICT DO NOTHING;
 
 ALTER TABLE device_retrievals ADD COLUMN IF NOT EXISTS archive_reason        VARCHAR(500);
 ALTER TABLE device_retrievals ADD COLUMN IF NOT EXISTS distribution_point_id BIGINT;
+ALTER TABLE device_retrievals ADD COLUMN IF NOT EXISTS receipt_number        VARCHAR(100);
+ALTER TABLE device_retrievals ADD COLUMN IF NOT EXISTS consignee             VARCHAR(255);
 
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS reference_number VARCHAR(100);
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS reference_date   DATE;
