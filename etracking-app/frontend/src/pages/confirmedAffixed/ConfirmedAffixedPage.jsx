@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
+import { useAuth } from '../../contexts/AuthContext';
 import PageHeader from '../../components/common/PageHeader';
 import DataTable from '../../components/common/DataTable';
 import Pagination from '../../components/common/Pagination';
@@ -11,6 +12,9 @@ import SearchBar from '../../components/common/SearchBar';
 
 export default function ConfirmedAffixedPage() {
   const { notify } = useNotification();
+  const { hasRole } = useAuth();
+  // Only SA, WM, and Affixing Officers may pick/return — RO Tracker and DEO are view-only
+  const canAffixWrite = hasRole(['Super Admin', 'Warehouse Manager', 'Affixing Officer']);
   const [records, setRecords]   = useState([]);
   const [meta, setMeta]         = useState({});
   const [loading, setLoading]   = useState(false);
@@ -123,7 +127,7 @@ export default function ConfirmedAffixedPage() {
     { header: 'Driver',        key: 'driver_name',       render: v => v || '—' },
     { header: 'Date',          key: 'date',              render: v => v ? new Date(v).toLocaleDateString() : '—' },
     { header: 'Status',        key: 'status',            render: v => <StatusBadge status={v} /> },
-    {
+    ...(canAffixWrite ? [{
       header: 'Actions', key: 'id',
       render: (_, row) => (
         <div className="flex gap-1">
@@ -135,7 +139,7 @@ export default function ConfirmedAffixedPage() {
             className="btn-warning btn-sm">Return Data</button>
         </div>
       ),
-    },
+    }] : []),
   ];
 
   return (
@@ -143,7 +147,7 @@ export default function ConfirmedAffixedPage() {
       <PageHeader title="Confirmed Dispatch" subtitle="Devices dispatched and pending affixing to vehicles"
         actions={
           <div className="flex gap-2">
-            {selected.length > 0 && (
+            {canAffixWrite && selected.length > 0 && (
               <button onClick={() => setBulkPickModal(true)} className="btn-success">
                 Pick Selected ({selected.length})
               </button>
@@ -158,7 +162,7 @@ export default function ConfirmedAffixedPage() {
         <SearchBar onSearch={s => { const p = { ...params, search: s, page: 1 }; setParams(p); load(p); }} className="w-64" />
       </div>
 
-      {selected.length > 0 && (
+      {canAffixWrite && selected.length > 0 && (
         <div className="flex items-center gap-3 mb-4 rounded-xl px-4 py-3 border"
           style={{ background: '#eef1fb', borderColor: '#c7cef0' }}>
           <span className="text-sm font-semibold" style={{ color: '#1E2D7A' }}>{selected.length} selected</span>
@@ -171,7 +175,7 @@ export default function ConfirmedAffixedPage() {
 
       <div className="card p-0 overflow-hidden">
         <DataTable columns={columns} data={records} loading={loading}
-          selectable selected={selected}
+          selectable={canAffixWrite} selected={selected}
           onSelect={(id, checked) => setSelected(prev => checked ? [...prev, id] : prev.filter(x => x !== id))}
           onSelectAll={checked => setSelected(checked ? records.map(r => r.id) : [])}
           emptyMessage="No confirmed dispatch records found." />
