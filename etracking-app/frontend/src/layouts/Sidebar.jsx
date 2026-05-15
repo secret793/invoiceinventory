@@ -233,9 +233,10 @@ export default function Sidebar() {
       { label: 'Regimes',             path: '/config/regimes'             },
       { label: 'Destinations',        path: '/config/destinations'        },
       ...(isSA ? [
-        { label: 'Users',    path: '/config/users'    },
-        { label: 'Roles',    path: '/config/roles'    },
-        { label: 'Settings', path: '/config/settings' },
+        { label: 'Users',        path: '/config/users'        },
+        { label: 'Roles',        path: '/config/roles'        },
+        { label: 'Permissions',  path: '/config/permissions'  },
+        { label: 'Settings',     path: '/config/settings'     },
       ] : []),
     ];
 
