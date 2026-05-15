@@ -77,8 +77,8 @@ class UserController
 
         $user = User::update($id, $updates);
 
-        if (!empty($data['roles'])) $this->syncRoles($id, $data['roles']);
-        if (!empty($data['permissions'])) $this->syncDirectPermissions($id, $data['permissions']);
+        if (array_key_exists('roles', $data))       $this->syncRoles($id, $data['roles'] ?? []);
+        if (array_key_exists('permissions', $data)) $this->syncDirectPermissions($id, $data['permissions'] ?? []);
 
         unset($user['password']);
         $user['roles']       = User::getRoles($id);
