@@ -26,8 +26,8 @@ export function AuthProvider({ children }) {
 
   useEffect(() => { loadUser(); }, [loadUser]);
 
-  const login = useCallback(async (email, password) => {
-    const { token: t, user: u } = await authService.login(email, password);
+  const login = useCallback(async (username, password) => {
+    const { token: t, user: u } = await authService.login(username, password);
     localStorage.setItem('token', t);
     setToken(t);
     setUser(u);

@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 export default function LoginPage() {
   const { login }      = useAuth();
   const navigate       = useNavigate();
-  const [form, setForm]   = useState({ email: '', password: '' });
+  const [form, setForm]   = useState({ username: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -15,10 +15,10 @@ export default function LoginPage() {
     e.preventDefault();
     setError(''); setLoading(true);
     try {
-      await login(form.email, form.password);
+      await login(form.username, form.password);
       navigate('/dashboard', { replace: true });
     } catch (e) {
-      setError(e.message || 'Invalid email or password');
+      setError(e.message || 'Invalid username or password');
     } finally {
       setLoading(false);
     }
@@ -39,12 +39,12 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-1" style={{ color: '#374151' }}>Email Address</label>
+          <label className="block text-sm font-medium mb-1" style={{ color: '#374151' }}>Username</label>
           <input
-            type="email" value={form.email}
-            onChange={e => set('email', e.target.value)}
+            type="text" value={form.username}
+            onChange={e => set('username', e.target.value)}
             required autoFocus
-            placeholder="you@gnsw.gm"
+            placeholder="Enter your username"
             style={{ display: 'block', width: '100%', borderRadius: 8, border: '1.5px solid #D1D5DB', padding: '9px 12px', fontSize: 14, outline: 'none', transition: 'border-color 0.2s' }}
             onFocus={e => e.target.style.borderColor = '#1E2D7A'}
             onBlur={e => e.target.style.borderColor = '#D1D5DB'}

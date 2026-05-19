@@ -13,6 +13,11 @@ class User extends BaseModel
         return Database::queryOne('SELECT * FROM users WHERE email = ?', [$email]);
     }
 
+    public static function findByUsername(string $username): ?array
+    {
+        return Database::queryOne('SELECT * FROM users WHERE username = ?', [$username]);
+    }
+
     public static function findWithRolesAndPermissions(int $id): ?array
     {
         $user = static::find($id);

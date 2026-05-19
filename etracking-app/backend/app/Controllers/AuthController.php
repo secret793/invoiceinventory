@@ -13,17 +13,17 @@ class AuthController
     public function login(Request $req): void
     {
         $data     = $req->json();
-        $email    = trim($data['email'] ?? '');
+        $username = trim($data['username'] ?? '');
         $password = $data['password'] ?? '';
 
-        if (!$email || !$password) {
-            Response::error('Email and password are required', 422);
+        if (!$username || !$password) {
+            Response::error('Username and password are required', 422);
         }
 
-        $user = User::findByEmail($email);
+        $user = User::findByUsername($username);
 
         if (!$user || !Auth::verifyPassword($password, $user['password'])) {
-            Response::unauthorized('Invalid email or password. Please try again.');
+            Response::unauthorized('Invalid username or password. Please try again.');
         }
 
         $roles       = User::getRoles((int) $user['id']);
