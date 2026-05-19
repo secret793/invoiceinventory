@@ -6,6 +6,10 @@ import { useNotification } from '../contexts/NotificationContext';
 
 const GN_RED = '#E31E24';
 
+/* Mirror of AllocationPoint::slugify() on the backend */
+const slugify = (name = '') =>
+  name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_');
+
 export default function Sidebar() {
   const { user, hasRole } = useAuth();
   const { collapsed, allocationPoints, distributionPoints } = useSidebar();
@@ -14,17 +18,33 @@ export default function Sidebar() {
   const [expanded, setExpanded] = useState({});
   const toggle = (key) => setExpanded(p => ({ ...p, [key]: !p[key] }));
 
+  /* ── Role flags ─────────────────────────────────────────────────────── */
   const isSA  = hasRole('Super Admin');
   const isWM  = hasRole('Warehouse Manager');
-  const isFO  = hasRole('Finance Officer')           && !isSA && !isWM;
-  const isRO  = hasRole('Read Only Tracker Officer')  && !isSA && !isWM;
-  const isMon = hasRole('Monitoring Officer')         && !isSA && !isWM;
-  const isRet = hasRole('Retrieval Officer')          && !isSA && !isWM;
-  const isAff = hasRole('Affixing Officer')           && !isSA && !isWM;
-  const isAO  = hasRole('Allocation Officer')         && !isSA && !isWM;
-  const isDO  = hasRole('Distribution Officer')       && !isSA && !isWM;
-  const isDEO = hasRole('Data Entry Officer')         && !isSA && !isWM;
+  const isFO  = hasRole('Finance Officer');
+  const isRO  = hasRole('Read Only Tracker Officer');
+  const isMon = hasRole('Monitoring Officer');
+  const isRet = hasRole('Retrieval Officer');
+  const isAff = hasRole('Affixing Officer');
+  const isAO  = hasRole('Allocation Officer');
+  const isDO  = hasRole('Distribution Officer');
+  const isDEO = hasRole('Data Entry Officer');
 
+  /* ── User permissions array (from JWT payload) ───────────────────────── */
+  const userPerms = user?.permissions || [];
+
+  /* ── Permission-filtered AP lists for limited-access roles ──────────── */
+  const aoAPs  = allocationPoints.filter(ap => {
+    const s = ap.slug || slugify(ap.name);
+    return userPerms.includes(`view_allocationpoint_${s}`);
+  });
+
+  const deoAPs = allocationPoints.filter(ap => {
+    const s = ap.slug || slugify(ap.name);
+    return userPerms.includes(`view_data_entry_${s}`);
+  });
+
+  /* ── Helpers ─────────────────────────────────────────────────────────── */
   const isActive = (path) =>
     location.pathname === path || location.pathname.startsWith(path + '/');
 
@@ -105,22 +125,69 @@ export default function Sidebar() {
     <p className="pl-10 py-2 text-xs italic" style={{ color: 'rgba(255,255,255,0.3)' }}>{msg}</p>
   );
 
+  /* ══════════════════════════════════════════════════════════════════════
+     renderNav — composable multi-role navigation
+     ══════════════════════════════════════════════════════════════════════ */
   const renderNav = () => {
 
-    /* ── 1. Finance Officer — Finance Management only, no Dashboard ──────── */
-    if (isFO && !isRet && !isAff && !isMon && !isAO && !isDO && !isDEO && !isRO) {
+    /* ── Super Admin / Warehouse Manager: full menu ───────────────────── */
+    if (isSA || isWM) {
+      const configItems = [
+        { label: 'Distribution Points', path: '/config/distribution-points' },
+        { label: 'Allocation Points',   path: '/config/allocation-points'   },
+        { label: 'Routes',              path: '/config/routes'              },
+        { label: 'Long Routes',         path: '/config/long-routes'         },
+        { label: 'Regimes',             path: '/config/regimes'             },
+        { label: 'Destinations',        path: '/config/destinations'        },
+        ...(isSA ? [
+          { label: 'Users',       path: '/config/users'       },
+          { label: 'Roles',       path: '/config/roles'       },
+          { label: 'Permissions', path: '/config/permissions' },
+          { label: 'Settings',    path: '/config/settings'    },
+        ] : []),
+      ];
       return (
         <>
-          {renderGroup('finance', '💰', 'Finance Management', <>
-            {renderSub('/invoices',                 'Overstay Receipts')}
-            {renderSub('/finance/dispatch-records', 'Dispatch Records')}
-            {renderSub('/receipts',                 'Generated Receipts')}
+          {renderLink('/dashboard',         '🏠', 'Dashboard')}
+          {renderLink('/devices',            '📱', 'Devices')}
+          {renderLink('/stores',             '🏭', 'Inventory')}
+          {renderLink('/other-items',        '📦', 'Other Items')}
+          {renderLink('/transfers',          '🔄', 'Transfers')}
+
+          {renderGroup('dist', '🌐', 'Distribution', <>
+            {distributionPoints.length > 0
+              ? distributionPoints.map(dp => renderSub(`/distribution/${dp.id}`, dp.name, dp.received_count || 0))
+              : empty('No DPs')}
+          </>)}
+
+          {renderGroup('alloc', '📍', 'Allocation Points', <>
+            {allocationPoints.length > 0
+              ? allocationPoints.map(ap => renderSub(`/allocation/${ap.id}`, ap.name, ap.received_count || 0))
+              : empty('No APs')}
+          </>)}
+
+          {renderGroup('de', '✏️', 'Data Entry', <>
+            {allocationPoints.length > 0
+              ? allocationPoints.map(ap => renderSub(`/data-entry/${ap.id}`, ap.name))
+              : empty('No APs')}
+          </>)}
+
+          {renderLink('/confirmed-affixed', '✅', 'Confirmed Dispatch')}
+          {renderLink('/device-retrievals', '🔙', 'Device Retrievals')}
+          {renderLink('/invoices',          '🧾', 'Overstay Invoices')}
+          {renderLink('/monitoring',        '👁️', 'Monitoring')}
+          {renderLink('/reports',           '📊', 'Reports')}
+
+          {isSA && renderLink('/notifications', '🔔', 'Notifications', unreadCount)}
+
+          {renderGroup('cfg', '⚙️', 'Configuration', <>
+            {configItems.map(c => renderSub(c.path, c.label))}
           </>)}
         </>
       );
     }
 
-    /* ── 2. Read Only Tracker — Tracking group only, no Dashboard ─────────── */
+    /* ── Read Only Tracker: Tracking group only — no Dashboard ────────── */
     if (isRO) {
       return (
         <>
@@ -133,150 +200,69 @@ export default function Sidebar() {
       );
     }
 
-    /* ── 3. Monitoring Officer only ──────────────────────────────────────── */
-    if (isMon && !isRet && !isAff && !isAO && !isDO && !isDEO) {
-      return (
-        <>
-          {renderLink('/dashboard', '🏠', 'Dashboard')}
-          {renderGroup('mon-g', '👁️', 'Monitoring', <>
-            {renderSub('/monitoring', 'Device Monitoring')}
-          </>)}
-        </>
-      );
-    }
+    /* ── Composable menu for all remaining single/dual/multi roles ──────
+       Each role adds its own section(s). Multiple roles accumulate.       */
 
-    /* ── 4. Dual role: Affixing + Retrieval ──────────────────────────────── */
-    if (isAff && isRet) {
-      return (
-        <>
-          {renderLink('/dashboard', '🏠', 'Dashboard')}
-          {renderGroup('ar-g', '🔗', 'Affixing & Retrieval Management', <>
-            {renderSub('/confirmed-affixed', 'Confirmed Affixed')}
-            {renderSub('/device-retrievals', 'Device Retrievals')}
-          </>)}
-        </>
-      );
-    }
+    // Finance Officer alone has no Dashboard; every other role has one.
+    const foOnly = isFO && !isAff && !isRet && !isMon && !isAO && !isDO && !isDEO;
 
-    /* ── 5. Retrieval Officer only ───────────────────────────────────────── */
-    if (isRet && !isAff) {
-      return (
-        <>
-          {renderLink('/dashboard', '🏠', 'Dashboard')}
-          {renderGroup('ret-g', '🔙', 'Device Retrieval', <>
-            {renderSub('/device-retrievals', 'Device Retrievals')}
-          </>)}
-        </>
-      );
-    }
-
-    /* ── 6. Affixing Officer only ────────────────────────────────────────── */
-    if (isAff && !isRet) {
-      return (
-        <>
-          {renderLink('/dashboard', '🏠', 'Dashboard')}
-          {renderGroup('aff-g', '✅', 'Confirmed Dispatch', <>
-            {renderSub('/confirmed-affixed', 'Confirmed Affixed')}
-          </>)}
-        </>
-      );
-    }
-
-    /* ── 7. Data Entry Officer ───────────────────────────────────────────── */
-    if (isDEO && !isAO && !isDO) {
-      return (
-        <>
-          {renderLink('/dashboard', '🏠', 'Dashboard')}
-          {renderGroup('de-g', '✏️', 'Data Entry/Assignment', <>
-            {allocationPoints.length > 0
-              ? allocationPoints.map(ap => renderSub(`/data-entry/${ap.id}`, ap.name))
-              : empty('No assignments')}
-          </>)}
-        </>
-      );
-    }
-
-    /* ── 8. Allocation Officer ───────────────────────────────────────────── */
-    if (isAO && !isDO) {
-      return (
-        <>
-          {renderLink('/dashboard', '🏠', 'Dashboard')}
-          {renderGroup('ao-g', '📍', 'Allocation', <>
-            {allocationPoints.length > 0
-              ? allocationPoints.map(ap => renderSub(`/allocation/${ap.id}`, ap.name, ap.received_count || 0))
-              : empty('No allocation points assigned')}
-          </>)}
-        </>
-      );
-    }
-
-    /* ── 9. Distribution Officer ─────────────────────────────────────────── */
-    if (isDO && !isAO) {
-      return (
-        <>
-          {renderLink('/dashboard', '🏠', 'Dashboard')}
-          {renderGroup('do-g', '🌐', 'Distribution Points', <>
-            {distributionPoints.length > 0
-              ? distributionPoints.map(dp => renderSub(`/distribution/${dp.id}`, dp.name, dp.received_count || 0))
-              : empty('No distribution points')}
-          </>)}
-        </>
-      );
-    }
-
-    /* ── Super Admin / Warehouse Manager / mixed roles — full menu ───────── */
-    const configItems = [
-      { label: 'Distribution Points', path: '/config/distribution-points' },
-      { label: 'Allocation Points',   path: '/config/allocation-points'   },
-      { label: 'Routes',              path: '/config/routes'              },
-      { label: 'Long Routes',         path: '/config/long-routes'         },
-      { label: 'Regimes',             path: '/config/regimes'             },
-      { label: 'Destinations',        path: '/config/destinations'        },
-      ...(isSA ? [
-        { label: 'Users',        path: '/config/users'        },
-        { label: 'Roles',        path: '/config/roles'        },
-        { label: 'Permissions',  path: '/config/permissions'  },
-        { label: 'Settings',     path: '/config/settings'     },
-      ] : []),
-    ];
+    // For Aff+Ret dual role the two groups merge into one combined group.
+    const showAffRet  = isAff && isRet;
+    const showAffOnly = isAff && !isRet;
+    const showRetOnly = isRet && !isAff;
 
     return (
       <>
-        {renderLink('/dashboard', '🏠', 'Dashboard')}
+        {/* Dashboard — suppressed only for FO-only */}
+        {!foOnly && renderLink('/dashboard', '🏠', 'Dashboard')}
 
-        {renderLink('/devices',     '📱', 'Devices')}
-        {renderLink('/stores',      '🏭', 'Inventory')}
-        {renderLink('/other-items', '📦', 'Other Items')}
-        {renderLink('/transfers',   '🔄', 'Transfers')}
+        {/* Finance Management (Finance Officer) */}
+        {isFO && renderGroup('finance', '💰', 'Finance Management', <>
+          {renderSub('/invoices',                 'Overstay Receipts')}
+          {renderSub('/finance/dispatch-records', 'Dispatch Records')}
+          {renderSub('/receipts',                 'Generated Receipts')}
+        </>)}
 
-        {renderGroup('dist', '🌐', 'Distribution', <>
+        {/* Distribution Points (Distribution Officer) */}
+        {isDO && renderGroup('do-g', '🌐', 'Distribution Points', <>
           {distributionPoints.length > 0
             ? distributionPoints.map(dp => renderSub(`/distribution/${dp.id}`, dp.name, dp.received_count || 0))
-            : empty('No DPs')}
+            : empty('No distribution points')}
         </>)}
 
-        {renderGroup('alloc', '📍', 'Allocation Points', <>
-          {allocationPoints.length > 0
-            ? allocationPoints.map(ap => renderSub(`/allocation/${ap.id}`, ap.name, ap.received_count || 0))
-            : empty('No APs')}
+        {/* Allocation Points (Allocation Officer) — filtered by view_allocationpoint_* */}
+        {isAO && renderGroup('ao-g', '📍', 'Allocation', <>
+          {aoAPs.length > 0
+            ? aoAPs.map(ap => renderSub(`/allocation/${ap.id}`, ap.name, ap.received_count || 0))
+            : empty('No allocation points assigned')}
         </>)}
 
-        {renderGroup('de', '✏️', 'Data Entry', <>
-          {allocationPoints.length > 0
-            ? allocationPoints.map(ap => renderSub(`/data-entry/${ap.id}`, ap.name))
-            : empty('No APs')}
+        {/* Data Entry (Data Entry Officer) — filtered by view_data_entry_* */}
+        {isDEO && renderGroup('de-g', '✏️', 'Data Entry/Assignment', <>
+          {deoAPs.length > 0
+            ? deoAPs.map(ap => renderSub(`/data-entry/${ap.id}`, ap.name))
+            : empty('No assignments')}
         </>)}
 
-        {renderLink('/confirmed-affixed', '✅', 'Confirmed Dispatch')}
-        {renderLink('/device-retrievals', '🔙', 'Device Retrievals')}
-        {renderLink('/invoices',          '🧾', 'Overstay Invoices')}
-        {renderLink('/monitoring',        '👁️', 'Monitoring')}
-        {renderLink('/reports',           '📊', 'Reports')}
+        {/* Affixing + Retrieval dual role → merged group */}
+        {showAffRet && renderGroup('ar-g', '🔗', 'Affixing & Retrieval Management', <>
+          {renderSub('/confirmed-affixed', 'Confirmed Affixed')}
+          {renderSub('/device-retrievals', 'Device Retrievals')}
+        </>)}
 
-        {isSA && renderLink('/notifications', '🔔', 'Notifications', unreadCount)}
+        {/* Affixing Officer only */}
+        {showAffOnly && renderGroup('aff-g', '✅', 'Confirmed Dispatch', <>
+          {renderSub('/confirmed-affixed', 'Confirmed Affixed')}
+        </>)}
 
-        {renderGroup('cfg', '⚙️', 'Configuration', <>
-          {configItems.map(c => renderSub(c.path, c.label))}
+        {/* Retrieval Officer only */}
+        {showRetOnly && renderGroup('ret-g', '🔙', 'Device Retrieval', <>
+          {renderSub('/device-retrievals', 'Device Retrievals')}
+        </>)}
+
+        {/* Monitoring Officer */}
+        {isMon && renderGroup('mon-g', '👁️', 'Monitoring', <>
+          {renderSub('/monitoring', 'Device Monitoring')}
         </>)}
       </>
     );
@@ -316,7 +302,7 @@ export default function Sidebar() {
       {!collapsed && (
         <div className="px-3 py-3 text-xs"
           style={{ borderTop: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' }}>
-          {user?.roles?.[0] || 'User'}
+          {user?.roles?.join(', ') || 'User'}
         </div>
       )}
     </aside>

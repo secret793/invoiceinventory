@@ -19,16 +19,48 @@ class SidebarController
         $distributionPoints = DistributionPoint::allWithCounts();
         $unreadCount       = Notification::unreadCount();
 
-        // Filter allocation points by user permission
+        // Attach computed slug to every AP so the frontend can do permission
+        // filtering by matching view_allocationpoint_{slug} / view_data_entry_{slug}
+        // without a second round-trip.
+        $allocationPoints = array_map(function (array $ap): array {
+            $ap['slug'] = AllocationPoint::slugify($ap['name']);
+            return $ap;
+        }, $allocationPoints);
+
+        // For non-SA / non-WM users: return only APs the user can interact with.
+        // We match BOTH view_allocationpoint_* (Allocation Officer)
+        // AND view_data_entry_*  (Data Entry Officer) so that DEO users
+        // also see their assigned APs in the sidebar.
         if (!PermissionService::isSuperAdmin($user) && !PermissionService::hasRole($user, 'Warehouse Manager')) {
-            $permittedIds      = AllocationPoint::getPermittedForUser($user);
-            $allocationPoints  = array_filter($allocationPoints, fn($ap) => in_array($ap['id'], $permittedIds));
-            $allocationPoints  = array_values($allocationPoints);
+            $perms = $user['permissions'] ?? [];
+
+            $permittedIds = [];
+
+            // view_allocationpoint_{slug} permissions
+            $apIds = AllocationPoint::getPermittedForUser($user);
+            foreach ($apIds as $id) {
+                $permittedIds[$id] = true;
+            }
+
+            // view_data_entry_{slug} permissions
+            foreach ($perms as $perm) {
+                if (preg_match('/^view_data_entry_(.+)$/', $perm, $m)) {
+                    $ap = \App\Core\Database::queryOne(
+                        "SELECT id FROM allocation_points WHERE LOWER(REPLACE(name,' ','_')) = ?",
+                        [$m[1]]
+                    );
+                    if ($ap) $permittedIds[(int) $ap['id']] = true;
+                }
+            }
+
+            $allocationPoints = array_values(
+                array_filter($allocationPoints, fn($ap) => isset($permittedIds[$ap['id']]))
+            );
         }
 
         Response::success([
-            'allocation_points'   => $allocationPoints,
-            'distribution_points' => $distributionPoints,
+            'allocation_points'    => $allocationPoints,
+            'distribution_points'  => $distributionPoints,
             'unread_notifications' => $unreadCount,
         ]);
     }

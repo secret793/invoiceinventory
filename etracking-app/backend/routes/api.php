@@ -131,6 +131,7 @@ $router->get('/api/device-retrievals/{id}/check-last-device',        [\App\Contr
 // ── Monitoring ────────────────────────────────────────────────────────────────
 $router->get('/api/monitoring',                [\App\Controllers\MonitoringController::class, 'index'],   ['auth']);
 $router->post('/api/monitoring/{id}/add-note', [\App\Controllers\MonitoringController::class, 'addNote'], ['auth']);
+$router->post('/api/overstay/recalculate',     [\App\Controllers\MonitoringController::class, 'recalculate'], ['auth']);
 
 // ── Notifications ─────────────────────────────────────────────────────────────
 $router->get('/api/notifications',              [\App\Controllers\NotificationController::class, 'index'],       ['auth']);

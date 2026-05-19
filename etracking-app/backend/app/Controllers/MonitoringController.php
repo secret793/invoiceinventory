@@ -6,11 +6,18 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Core\Database;
 use App\Models\Monitoring;
+use App\Services\OverstayCalculatorService;
 
 class MonitoringController
 {
     public function index(Request $req): void
     {
+        // Auto-recalculate overstay on every monitoring poll (10 s interval).
+        // Skips RETRIEVED/archived records automatically — only active retrievals
+        // are updated. Write-only-if-changed logic in recalculateAll() keeps DB
+        // load minimal even at the 10-second polling cadence.
+        OverstayCalculatorService::recalculateAll();
+
         $page    = max(1, (int) $req->query('page', 1));
         $perPage = min(100, max(1, (int) $req->query('per_page', 25)));
 
@@ -25,6 +32,20 @@ class MonitoringController
 
         $result = Monitoring::listPaginated($page, $perPage, $filters);
         Response::paginated($result['data'], $result['total'], $page, $perPage);
+    }
+
+    /**
+     * POST /api/overstay/recalculate
+     * On-demand batch recalculation — callable from the UI or an external cron.
+     * Requires Super Admin or Warehouse Manager role (enforced in routes/api.php).
+     */
+    public function recalculate(Request $req): void
+    {
+        $updated = OverstayCalculatorService::recalculateAll();
+        Response::success(
+            ['updated' => $updated],
+            "Overstay recalculated for {$updated} active retrieval(s)."
+        );
     }
 
     public function addNote(Request $req): void

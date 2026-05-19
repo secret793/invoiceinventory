@@ -64,7 +64,7 @@ class OverstayCalculatorService
     }
 
     /**
-     * Recalculate and persist overstay for a retrieval.
+     * Recalculate and persist overstay for a single retrieval.
      * Skips silently if retrieval_status = RETRIEVED (overstay is frozen).
      */
     public static function recalculateForRetrieval(int $retrievalId): void
@@ -75,8 +75,58 @@ class OverstayCalculatorService
 
         $calc = self::calculate($row);
         Database::execute(
-            'UPDATE device_retrievals SET overstay_days = ?, overstay_amount = ?, overdue_hours = ?, updated_at = NOW() WHERE id = ?',
+            'UPDATE device_retrievals
+             SET overstay_days = ?, overstay_amount = ?, overdue_hours = ?, updated_at = NOW()
+             WHERE id = ?',
             [$calc['overstay_days'], $calc['overstay_amount'], $calc['overdue_hours'], $retrievalId]
         );
+    }
+
+    /**
+     * Batch-recalculate overstay for ALL active (non-retrieved, non-archived) retrievals.
+     *
+     * Called by:
+     *  - MonitoringController::index()    — every 10-second poll from the monitoring page
+     *  - POST /api/overstay/recalculate  — on-demand via API (manual trigger / cron)
+     *  - scripts/recalculate_overstay.php — Linux cron job
+     *
+     * Grace periods: short route = 1 day, long route = 2 days.
+     * Rate: GMD 1,000 / day (flat).
+     * Overstay is NOT recalculated for records with retrieval_status = RETRIEVED.
+     *
+     * @return int  Number of records updated.
+     */
+    public static function recalculateAll(): int
+    {
+        $rows = Database::query(
+            "SELECT * FROM device_retrievals
+             WHERE is_archived = FALSE
+               AND retrieval_status != 'RETRIEVED'
+               AND affixing_date IS NOT NULL",
+            []
+        );
+
+        if (!$rows) return 0;
+
+        $count = 0;
+        foreach ($rows as $row) {
+            $calc = self::calculate($row);
+
+            // Only write if values have actually changed to reduce DB churn
+            if (
+                (int)   $row['overstay_days']   !== $calc['overstay_days']   ||
+                (float) $row['overstay_amount']  !== $calc['overstay_amount'] ||
+                (int)   ($row['overdue_hours'] ?? 0) !== $calc['overdue_hours']
+            ) {
+                Database::execute(
+                    'UPDATE device_retrievals
+                     SET overstay_days = ?, overstay_amount = ?, overdue_hours = ?, updated_at = NOW()
+                     WHERE id = ?',
+                    [$calc['overstay_days'], $calc['overstay_amount'], $calc['overdue_hours'], $row['id']]
+                );
+            }
+            $count++;
+        }
+        return $count;
     }
 }
