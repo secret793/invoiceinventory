@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../../services/api';
+import { downloadFile } from '../../utils/downloadFile';
 import { allocationService } from '../../services/allocationService';
 import { useNotification } from '../../contexts/NotificationContext';
 import PageHeader from '../../components/common/PageHeader';
@@ -911,7 +912,7 @@ export default function DataEntryDetailPage() {
         title={`Dispatch Report — ${ap?.name || id}`} size="full"
         footer={
           <div className="flex items-center justify-between w-full">
-            <a href={dispatchReportExportUrl()} target="_blank" rel="noreferrer" className="btn-success btn-sm">Export CSV</a>
+            <button onClick={() => downloadFile(dispatchReportExportUrl(), 'dispatch-report.csv').catch(() => notify.error('Export failed'))} className="btn-success btn-sm">Export CSV</button>
             <button onClick={() => setShowDispatchReport(false)} className="btn-secondary">Close</button>
           </div>
         }>

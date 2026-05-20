@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
+import { downloadFile } from '../../utils/downloadFile';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useAuth } from '../../contexts/AuthContext';
 import PageHeader from '../../components/common/PageHeader';
@@ -238,9 +239,9 @@ export default function ConfirmedAffixedPage() {
       <Modal isOpen={reportOpen} onClose={() => setReportOpen(false)} title="Confirmed Dispatch Report" size="full"
         footer={
           <div className="flex items-center justify-between w-full">
-            <a href={exportUrl()} target="_blank" rel="noreferrer" className="btn-success btn-sm">
+            <button onClick={() => downloadFile(exportUrl(), 'confirmed-dispatch-report.csv').catch(() => notify.error('Export failed'))} className="btn-success btn-sm">
               Export to CSV
-            </a>
+            </button>
             <button onClick={() => setReportOpen(false)} className="btn-secondary">Close</button>
           </div>
         }>

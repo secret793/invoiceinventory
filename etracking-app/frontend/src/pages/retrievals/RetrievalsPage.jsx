@@ -1,5 +1,6 @@
 /* @refresh reset */
 import React, { useState, useEffect, useCallback } from 'react';
+import { downloadFile } from '../../utils/downloadFile';
 import { useRetrievals } from '../../hooks/useRetrievals';
 import { retrievalService } from '../../services/retrievalService';
 import { distributionService } from '../../services/distributionService';
@@ -473,8 +474,8 @@ export default function RetrievalsPage() {
                 className="btn-success btn-sm">Approve&nbsp;Pmt</button>
             )}
             {canDL && (
-              <a href={retrievalService.downloadInvoiceUrl(row.id)} target="_blank" rel="noreferrer"
-                className="btn-primary btn-sm">Invoice</a>
+              <button onClick={() => downloadFile(retrievalService.downloadInvoiceUrl(row.id), `Invoice-${row.id}.html`).catch(() => notify.error('Download failed'))}
+                className="btn-primary btn-sm">Invoice</button>
             )}
           </div>
         );
@@ -1029,8 +1030,8 @@ export default function RetrievalsPage() {
       <Modal isOpen={reportOpen} onClose={() => setReportOpen(false)} title="Device Retrieval Report" size="xl"
         footer={
           <div className="flex gap-2">
-            <a href={retrievalService.exportUrl(rFilters)} target="_blank" rel="noreferrer"
-              className="btn-primary">Export to Excel</a>
+            <button onClick={() => downloadFile(retrievalService.exportUrl(rFilters), 'device-retrieval-report.csv').catch(() => notify.error('Export failed'))}
+              className="btn-primary">Export CSV</button>
             <button onClick={() => setReportOpen(false)} className="btn-secondary">Close</button>
           </div>
         }>
@@ -1160,8 +1161,8 @@ export default function RetrievalsPage() {
       <Modal isOpen={report2Open} onClose={() => setReport2Open(false)} title="Device Retrieval Report #2" size="xl"
         footer={
           <div className="flex gap-2">
-            <a href={retrievalService.export2Url(r2Filters)} target="_blank" rel="noreferrer"
-              className="btn-warning">Export Report #2</a>
+            <button onClick={() => downloadFile(retrievalService.export2Url(r2Filters), 'device-retrieval-report-2.csv').catch(() => notify.error('Export failed'))}
+              className="btn-warning">Export Report #2</button>
             <button onClick={() => setReport2Open(false)} className="btn-secondary">Close</button>
           </div>
         }>

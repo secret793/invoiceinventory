@@ -1,5 +1,6 @@
 /* @refresh reset */
 import React, { useState, useEffect, useCallback } from 'react';
+import { downloadFile } from '../../utils/downloadFile';
 import { invoiceService } from '../../services/retrievalService';
 import { retrievalService } from '../../services/retrievalService';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -98,9 +99,8 @@ export default function InvoicesPage() {
         return (
           <div className="flex gap-1">
             {canDL && (
-              <a href={retrievalService.downloadInvoiceUrl(retrievalId)}
-                target="_blank" rel="noreferrer"
-                className="btn-primary btn-sm">Invoice</a>
+              <button onClick={() => downloadFile(retrievalService.downloadInvoiceUrl(retrievalId), `Invoice-${retrievalId}.html`).catch(() => {})}
+                className="btn-primary btn-sm">Invoice</button>
             )}
           </div>
         );
@@ -114,9 +114,9 @@ export default function InvoicesPage() {
         title="Overstay Invoices"
         subtitle="Generated overstay billing records and payment status"
         actions={
-          <a href="/api/reports/overstay-invoices" target="_blank" className="btn-secondary">
+          <button onClick={() => downloadFile('/api/reports/overstay-invoices', 'overstay-invoices.csv').catch(() => {})} className="btn-secondary">
             Export CSV
-          </a>
+          </button>
         }
       />
 
