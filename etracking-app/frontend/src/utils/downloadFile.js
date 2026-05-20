@@ -1,7 +1,9 @@
 import api from '../services/api';
 
 export async function downloadFile(url, defaultFilename = 'download.csv') {
-  const res = await api.get(url, { responseType: 'blob' });
+  const cleanUrl = url.replace(/^\/api\//, '/').replace(/^\/api$/, '/');
+
+  const res = await api.get(cleanUrl, { responseType: 'blob' });
 
   const disposition = res.headers?.['content-disposition'] || '';
   const match = disposition.match(/filename[^;=\n]*=(['"]?)([^'";\n]+)\1/i);
