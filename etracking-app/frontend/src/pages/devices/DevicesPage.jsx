@@ -309,16 +309,33 @@ export default function DevicesPage() {
           {importResult && (
             <div className="rounded-lg p-3 space-y-2" style={{ background: '#f0fdf4', border: '1px solid #86efac' }}>
               <p className="text-sm font-semibold text-green-800">
-                ✓ {importResult.created} device(s) imported{importResult.skipped ? `, ${importResult.skipped} skipped` : ''}
+                ✓ {importResult.created} device(s) imported
+                {importResult.skipped ? `, ${importResult.skipped} skipped` : ''}
               </p>
-              {importResult.errors?.length > 0 && (
-                <div className="mt-2">
-                  <p className="text-xs font-semibold text-red-700 mb-1">Row errors:</p>
-                  <ul className="text-xs text-red-600 space-y-0.5 max-h-32 overflow-y-auto">
-                    {importResult.errors.map((e, i) => <li key={i}>• {e}</li>)}
-                  </ul>
-                </div>
-              )}
+              {importResult.errors?.length > 0 && (() => {
+                const warns = importResult.errors.filter(e => e.includes('not found'));
+                const errs  = importResult.errors.filter(e => !e.includes('not found'));
+                return (
+                  <>
+                    {errs.length > 0 && (
+                      <div className="mt-1">
+                        <p className="text-xs font-semibold text-red-700 mb-1">Errors ({errs.length} row{errs.length !== 1 ? 's' : ''} skipped):</p>
+                        <ul className="text-xs text-red-600 space-y-0.5 max-h-28 overflow-y-auto">
+                          {errs.map((e, i) => <li key={i}>• {e}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {warns.length > 0 && (
+                      <div className="mt-1">
+                        <p className="text-xs font-semibold text-yellow-700 mb-1">Warnings ({warns.length}):</p>
+                        <ul className="text-xs text-yellow-700 space-y-0.5 max-h-28 overflow-y-auto">
+                          {warns.map((w, i) => <li key={i}>⚠ {w}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>

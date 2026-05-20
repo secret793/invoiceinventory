@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Core\Request;
 use App\Core\Response;
+use App\Models\AllocationPoint;
 use App\Models\Device;
 use App\Models\Store;
 use App\Services\NotificationService;
@@ -152,14 +153,14 @@ class DeviceController
         // BOM for Excel UTF-8 compatibility
         echo "\xEF\xBB\xBF";
 
-        $headers = ['Device ID', 'Device Type', 'Serial Number', 'Batch Number', 'Date Received', 'Status', 'SIM Number', 'SIM Operator', 'Notes'];
+        $headers = ['Device ID', 'Device Type', 'Serial Number', 'Batch Number', 'Date Received', 'Status', 'SIM Number', 'SIM Operator', 'Allocation Point', 'Notes'];
         echo implode(',', $headers) . "\r\n";
 
-        // Example rows
+        // Example rows — Device ID must be alphanumeric, min 20 characters
         $examples = [
-            ['GT-001', 'JT701',  'SN-20240001', 'BATCH-' . date('Ymd'), date('Y-m-d'), 'UNCONFIGURED', '', 'Africell', ''],
-            ['GT-002', 'JT709A', 'SN-20240002', 'BATCH-' . date('Ymd'), date('Y-m-d'), 'CONFIGURED',   '2207000001', 'Gamcel', ''],
-            ['GT-003', 'JT709C', 'SN-20240003', 'BATCH-' . date('Ymd'), date('Y-m-d'), 'ONLINE',        '2207000002', 'QCell', 'Example note'],
+            ['GT00120240001BATCH0001', 'JT701',  'SN-20240001', 'BATCH-' . date('Ymd'), date('Y-m-d'), 'UNCONFIGURED', '',           'Africell', '', ''],
+            ['GT00220240002BATCH0002', 'JT709A', 'SN-20240002', 'BATCH-' . date('Ymd'), date('Y-m-d'), 'CONFIGURED',   '2207000001', 'Gamcel',   'Banjul AP', ''],
+            ['GT00320240003BATCH0003', 'JT709C', 'SN-20240003', 'BATCH-' . date('Ymd'), date('Y-m-d'), 'ONLINE',       '2207000002', 'QCell',    'Serekunda AP', 'Example note'],
         ];
         foreach ($examples as $row) {
             echo implode(',', array_map(fn($v) => '"' . str_replace('"', '""', $v) . '"', $row)) . "\r\n";
@@ -209,6 +210,10 @@ class DeviceController
 
             $deviceId = $col($row, 'device id', 'device_id', 'id');
             if (!$deviceId) { $errors[] = "Row " . ($i + 2) . ": Device ID is required"; $skipped++; continue; }
+            if (!preg_match('/^[A-Za-z0-9]{20,}$/', $deviceId)) {
+                $errors[] = "Row " . ($i + 2) . ": Device ID '$deviceId' must be alphanumeric and at least 20 characters";
+                $skipped++; continue;
+            }
 
             $deviceType = $col($row, 'device type', 'device_type', 'type');
             if (!$deviceType) { $errors[] = "Row " . ($i + 2) . ": Device Type is required"; $skipped++; continue; }
@@ -228,17 +233,34 @@ class DeviceController
 
             try {
                 $batchNum = $col($row, 'batch number', 'batch_number', 'batch') ?: ('BATCH-' . date('Ymd'));
+
+                // Resolve allocation point by name (case-insensitive)
+                $apId = null;
+                $apName = $col($row, 'allocation point', 'allocation_point', 'ap');
+                if ($apName) {
+                    $ap = \App\Core\Database::queryOne(
+                        "SELECT id FROM allocation_points WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))",
+                        [$apName]
+                    );
+                    if ($ap) {
+                        $apId = (int) $ap['id'];
+                    } else {
+                        $errors[] = "Row " . ($i + 2) . ": Allocation point '$apName' not found — device imported without AP assignment";
+                    }
+                }
+
                 $device = Device::create([
-                    'device_id'     => $deviceId,
-                    'device_type'   => $deviceType,
-                    'serial_number' => $col($row, 'serial number', 'serial_number', 'serial'),
-                    'batch_number'  => $batchNum,
-                    'date_received' => $dateReceived,
-                    'status'        => $status,
-                    'sim_number'    => $col($row, 'sim number', 'sim_number', 'sim'),
-                    'sim_operator'  => $col($row, 'sim operator', 'sim_operator', 'operator'),
-                    'notes'         => $col($row, 'notes', 'note'),
-                    'user_id'       => $user['id'],
+                    'device_id'            => $deviceId,
+                    'device_type'          => $deviceType,
+                    'serial_number'        => $col($row, 'serial number', 'serial_number', 'serial'),
+                    'batch_number'         => $batchNum,
+                    'date_received'        => $dateReceived,
+                    'status'               => $status,
+                    'sim_number'           => $col($row, 'sim number', 'sim_number', 'sim'),
+                    'sim_operator'         => $col($row, 'sim operator', 'sim_operator', 'operator'),
+                    'notes'                => $col($row, 'notes', 'note'),
+                    'allocation_point_id'  => $apId,
+                    'user_id'              => $user['id'],
                 ]);
 
                 // Auto-create store entry
