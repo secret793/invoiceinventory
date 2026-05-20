@@ -187,13 +187,18 @@ CREATE TABLE IF NOT EXISTS regimes (
 );
 
 CREATE TABLE IF NOT EXISTS destinations (
-    id          BIGSERIAL PRIMARY KEY,
-    name        VARCHAR(255) NOT NULL,
-    country     VARCHAR(100),
-    description TEXT,
-    regime_id   BIGINT,
-    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id                  BIGSERIAL PRIMARY KEY,
+    name                VARCHAR(255) NOT NULL,
+    country             VARCHAR(100),
+    description         TEXT,
+    regime_id           BIGINT,
+    address             VARCHAR(255),
+    latitude            VARCHAR(50),
+    longitude           VARCHAR(50),
+    status              VARCHAR(20) NOT NULL DEFAULT 'Active',
+    is_default_location BOOLEAN     NOT NULL DEFAULT FALSE,
+    created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT destinations_regime_fk FOREIGN KEY (regime_id) REFERENCES regimes(id) ON DELETE SET NULL
 );
 

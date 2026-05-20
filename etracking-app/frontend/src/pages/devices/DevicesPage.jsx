@@ -66,10 +66,15 @@ export default function DevicesPage() {
     changeFilters({ status: next });
   };
 
-  const handleDownloadTemplate = () => {
-    const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || '';
-    const base = import.meta.env.VITE_API_BASE_URL || '';
-    window.open(`${base}/api/devices/import-template${token ? `?token=${token}` : ''}`, '_blank');
+  const handleDownloadTemplate = async () => {
+    try {
+      const res = await api.get('/devices/import-template', { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = 'Device_Import_Template.csv';
+      document.body.appendChild(a); a.click();
+      window.URL.revokeObjectURL(url); document.body.removeChild(a);
+    } catch { notify.error('Failed to download template'); }
   };
 
   const handleImport = async () => {

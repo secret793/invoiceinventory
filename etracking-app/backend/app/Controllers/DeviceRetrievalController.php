@@ -186,6 +186,21 @@ class DeviceRetrievalController
             Response::error('Only retrieved devices can be returned to outstation.', 422);
         }
 
+        // Enforce DP name must match the device's Allocation Point name
+        $device = Database::queryOne('SELECT allocation_point_id FROM devices WHERE id = ?', [$retrieval['device_id']]);
+        if ($device && !empty($device['allocation_point_id'])) {
+            $ap = Database::queryOne('SELECT name FROM allocation_points WHERE id = ?', [(int) $device['allocation_point_id']]);
+            $dp = Database::queryOne('SELECT name FROM distribution_points WHERE id = ?', [(int) $dpId]);
+            $apName = $ap ? trim($ap['name']) : '';
+            $dpName = $dp ? trim($dp['name']) : '';
+            if ($apName !== '' && $dpName !== '' && strcasecmp($dpName, $apName) !== 0) {
+                Response::error(
+                    "Cannot return device to Distribution Point \"{$dpName}\". It must be returned to a Distribution Point matching its Allocation Point \"{$apName}\".",
+                    422
+                );
+            }
+        }
+
         if (($retrieval['transfer_status'] ?? '') === 'completed') {
             Response::error('Transfer is already completed.', 422);
         }

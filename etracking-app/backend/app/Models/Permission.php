@@ -40,8 +40,20 @@ class Permission extends BaseModel
 
     public static function createForDestination(string $slug): void
     {
-        foreach (['view_destination_', 'manage_devices_destination_'] as $prefix) {
-            $name = $prefix . $slug;
+        $permissions = [
+            "view_{$slug}",
+            "manage_devices_{$slug}",
+            "manage_routes_{$slug}",
+            "manage_allocation_{$slug}",
+            "manage_distribution_{$slug}",
+            "manage_transfers_{$slug}",
+            "manage_retrievals_{$slug}",
+            "manage_invoices_{$slug}",
+            "manage_monitoring_{$slug}",
+            "manage_data_entry_{$slug}",
+            "manage_config_{$slug}",
+        ];
+        foreach ($permissions as $name) {
             if (!Database::queryOne('SELECT id FROM permissions WHERE name = ?', [$name])) {
                 Database::execute(
                     "INSERT INTO permissions (name, guard_name, created_at, updated_at) VALUES (?, 'web', NOW(), NOW())",

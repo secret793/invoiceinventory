@@ -80,7 +80,7 @@ export default function DashboardPage() {
               <h1 className="text-2xl font-bold">
                 Welcome back, {user?.name?.split(' ')[0] || 'User'}
               </h1>
-              <p className="text-blue-200 mt-1 text-sm">GNSW E-Tracking System — Gambia National Standards &amp; Weights</p>
+              <p className="text-blue-200 mt-1 text-sm">GNSW E-Tracking System — Gambia National Single Window</p>
             </div>
             <div className="text-right">
               <p className="text-blue-200 text-xs">Current Time</p>

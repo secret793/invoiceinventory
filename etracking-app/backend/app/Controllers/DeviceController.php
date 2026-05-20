@@ -42,9 +42,10 @@ class DeviceController
     public function store(Request $req): void
     {
         $data = $req->validated([
-            'device_type'   => 'required',
-            'device_id'     => 'required',
-            'date_received' => 'required',
+            'device_type'         => 'required',
+            'device_id'           => 'required',
+            'date_received'       => 'required',
+            'allocation_point_id' => 'required',
         ]);
 
         $user = $req->user();

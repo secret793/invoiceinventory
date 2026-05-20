@@ -133,7 +133,13 @@ class TransferController
         if (empty($ids)) Response::error('ids are required');
         if (!$dpId)      Response::error('distribution_point_id is required');
 
-        $created = 0;
+        // Get the target distribution point name
+        $dp = Database::queryOne('SELECT id, name FROM distribution_points WHERE id = ?', [(int) $dpId]);
+        if (!$dp) Response::error('Distribution point not found');
+        $dpName = trim($dp['name']);
+
+        $created  = 0;
+        $mismatches = [];
         foreach ($ids as $deviceId) {
             $device = Device::find((int) $deviceId);
             if (!$device) continue;
@@ -142,6 +148,16 @@ class TransferController
             if (in_array($device['status'], ['OFFLINE', 'LOST', 'DAMAGED'])) continue;
             // Skip if already has a distribution point
             if (!empty($device['distribution_point_id'])) continue;
+
+            // Enforce DP name must match AP name
+            if (!empty($device['allocation_point_id'])) {
+                $ap = Database::queryOne('SELECT name FROM allocation_points WHERE id = ?', [(int) $device['allocation_point_id']]);
+                $apName = $ap ? trim($ap['name']) : '';
+                if ($apName !== '' && strcasecmp($dpName, $apName) !== 0) {
+                    $mismatches[] = $device['device_id'] . " (AP: {$apName})";
+                    continue;
+                }
+            }
 
             Transfer::create([
                 'device_id'                    => $deviceId,
@@ -157,6 +173,17 @@ class TransferController
             $created++;
         }
 
-        Response::success(['created' => $created], "$created transfer record(s) created");
+        if ($created === 0 && !empty($mismatches)) {
+            Response::error(
+                'Transfer rejected: Distribution Point "' . $dpName . '" does not match the Allocation Point for device(s): ' . implode(', ', $mismatches) . '. The DP name must match the AP name.',
+                422
+            );
+        }
+
+        $msg = "$created transfer record(s) created";
+        if (!empty($mismatches)) {
+            $msg .= '. Skipped ' . count($mismatches) . ' device(s) due to DP/AP name mismatch: ' . implode(', ', $mismatches);
+        }
+        Response::success(['created' => $created, 'mismatches' => $mismatches], $msg);
     }
 }

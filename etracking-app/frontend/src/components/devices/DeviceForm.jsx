@@ -22,9 +22,10 @@ export default function DeviceForm({ initial = {}, onSubmit, loading = false, on
 
   const validate = () => {
     const e = {};
-    if (!form.device_type)   e.device_type   = 'Device type is required';
-    if (!form.device_id)     e.device_id     = 'Device ID is required';
-    if (!form.date_received) e.date_received = 'Date received is required';
+    if (!form.device_type)        e.device_type        = 'Device type is required';
+    if (!form.device_id)          e.device_id          = 'Device ID is required';
+    if (!form.date_received)      e.date_received      = 'Date received is required';
+    if (!form.allocation_point_id) e.allocation_point_id = 'Allocation point is required';
     setErrors(e);
     return !Object.keys(e).length;
   };
@@ -77,8 +78,8 @@ export default function DeviceForm({ initial = {}, onSubmit, loading = false, on
           {SIM_OPERATORS.map(o => <option key={o} value={o}>{o}</option>)}
         </Select>
 
-        <Select label="Allocation Point" value={form.allocation_point_id || ''} onChange={e => set('allocation_point_id', e.target.value)}>
-          <option value="">None</option>
+        <Select label="Allocation Point" required value={form.allocation_point_id || ''} onChange={e => set('allocation_point_id', e.target.value)} error={errors.allocation_point_id}>
+          <option value="">Select allocation point…</option>
           {allocationPoints.map(ap => <option key={ap.id} value={ap.id}>{ap.name}</option>)}
         </Select>
 
