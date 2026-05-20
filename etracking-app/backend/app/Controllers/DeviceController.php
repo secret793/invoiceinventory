@@ -156,11 +156,11 @@ class DeviceController
         $headers = ['Device ID', 'Device Type', 'Serial Number', 'Batch Number', 'Date Received', 'Status', 'SIM Number', 'SIM Operator', 'Allocation Point', 'Notes'];
         echo implode(',', $headers) . "\r\n";
 
-        // Example rows — Device ID must be alphanumeric, min 20 characters
+        // Example rows — Device ID must be numbers only, no length limit
         $examples = [
-            ['GT00120240001BATCH0001', 'JT701',  'SN-20240001', 'BATCH-' . date('Ymd'), date('Y-m-d'), 'UNCONFIGURED', '',           'Africell', '', ''],
-            ['GT00220240002BATCH0002', 'JT709A', 'SN-20240002', 'BATCH-' . date('Ymd'), date('Y-m-d'), 'CONFIGURED',   '2207000001', 'Gamcel',   'Banjul AP', ''],
-            ['GT00320240003BATCH0003', 'JT709C', 'SN-20240003', 'BATCH-' . date('Ymd'), date('Y-m-d'), 'ONLINE',       '2207000002', 'QCell',    'Serekunda AP', 'Example note'],
+            ['1001', 'JT701',  'SN-20240001', 'BATCH-' . date('Ymd'), date('Y-m-d'), 'UNCONFIGURED', '',           'Africell', '', ''],
+            ['1002', 'JT709A', 'SN-20240002', 'BATCH-' . date('Ymd'), date('Y-m-d'), 'CONFIGURED',   '2207000001', 'Gamcel',   'Banjul Port Authority', ''],
+            ['1003', 'JT709C', 'SN-20240003', 'BATCH-' . date('Ymd'), date('Y-m-d'), 'ONLINE',       '2207000002', 'QCell',    'Brikama Checkpoint', 'Example note'],
         ];
         foreach ($examples as $row) {
             echo implode(',', array_map(fn($v) => '"' . str_replace('"', '""', $v) . '"', $row)) . "\r\n";
@@ -210,8 +210,8 @@ class DeviceController
 
             $deviceId = $col($row, 'device id', 'device_id', 'id');
             if (!$deviceId) { $errors[] = "Row " . ($i + 2) . ": Device ID is required"; $skipped++; continue; }
-            if (!preg_match('/^[A-Za-z0-9]{20,}$/', $deviceId)) {
-                $errors[] = "Row " . ($i + 2) . ": Device ID '$deviceId' must be alphanumeric and at least 20 characters";
+            if (!preg_match('/^[0-9]+$/', $deviceId)) {
+                $errors[] = "Row " . ($i + 2) . ": Device ID '$deviceId' must contain numbers only";
                 $skipped++; continue;
             }
 
