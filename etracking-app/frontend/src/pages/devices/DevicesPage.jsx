@@ -68,7 +68,7 @@ export default function DevicesPage() {
 
   const handleDownloadTemplate = async () => {
     try {
-      const res = await api.get('/devices/import-template', { responseType: 'blob' });
+      const res = await api.get(`/devices/import-template?t=${Date.now()}`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
       const a = document.createElement('a');
       a.href = url; a.download = 'Device_Import_Template.csv';
