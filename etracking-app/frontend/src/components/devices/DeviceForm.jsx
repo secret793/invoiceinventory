@@ -5,14 +5,14 @@ const DEVICE_TYPES  = ['JT701', 'JT709A', 'JT709C'];
 const DEVICE_STATUS = ['UNCONFIGURED', 'CONFIGURED', 'ONLINE', 'OFFLINE', 'DAMAGED', 'FIXED', 'LOST'];
 const SIM_OPERATORS = ['Africell', 'Gamcel', 'QCell', 'Comium'];
 
-export default function DeviceForm({ initial = {}, onSubmit, loading = false, onCancel, allocationPoints = [], distributionPoints = [] }) {
+export default function DeviceForm({ initial = {}, onSubmit, loading = false, onCancel, companies = [], distributionPoints = [] }) {
   const today = new Date().toISOString().split('T')[0];
   const defaultBatch = 'BATCH-' + today.replace(/-/g, '');
 
   const [form, setForm] = useState({
     device_type: '', device_id: '', serial_number: '', sim_number: '',
     sim_operator: '', batch_number: defaultBatch, date_received: today,
-    status: 'UNCONFIGURED', allocation_point_id: '', distribution_point_id: '',
+    status: 'UNCONFIGURED', company_id: '', distribution_point_id: '',
     is_configured: 0, notes: '', icloud_device_guid: '',
     ...initial,
   });
@@ -22,10 +22,9 @@ export default function DeviceForm({ initial = {}, onSubmit, loading = false, on
 
   const validate = () => {
     const e = {};
-    if (!form.device_type)        e.device_type        = 'Device type is required';
-    if (!form.device_id)          e.device_id          = 'Device ID is required';
-    if (!form.date_received)      e.date_received      = 'Date received is required';
-    if (!form.allocation_point_id) e.allocation_point_id = 'Allocation point is required';
+    if (!form.device_type)   e.device_type   = 'Device type is required';
+    if (!form.device_id)     e.device_id     = 'Device ID is required';
+    if (!form.date_received) e.date_received = 'Date received is required';
     setErrors(e);
     return !Object.keys(e).length;
   };
@@ -78,9 +77,9 @@ export default function DeviceForm({ initial = {}, onSubmit, loading = false, on
           {SIM_OPERATORS.map(o => <option key={o} value={o}>{o}</option>)}
         </Select>
 
-        <Select label="Allocation Point" required value={form.allocation_point_id || ''} onChange={e => set('allocation_point_id', e.target.value)} error={errors.allocation_point_id}>
-          <option value="">Select allocation point…</option>
-          {allocationPoints.map(ap => <option key={ap.id} value={ap.id}>{ap.name}</option>)}
+        <Select label="Company" value={form.company_id || ''} onChange={e => set('company_id', e.target.value)}>
+          <option value="">Select company…</option>
+          {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </Select>
 
         <Input label="iCloud Device GUID" value={form.icloud_device_guid || ''} onChange={e => set('icloud_device_guid', e.target.value)} placeholder="Optional — auto-filled by Sync" />
