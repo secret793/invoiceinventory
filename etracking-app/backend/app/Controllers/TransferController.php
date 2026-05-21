@@ -149,12 +149,12 @@ class TransferController
             // Skip if already has a distribution point
             if (!empty($device['distribution_point_id'])) continue;
 
-            // Enforce DP name must match AP name
-            if (!empty($device['allocation_point_id'])) {
-                $ap = Database::queryOne('SELECT name FROM allocation_points WHERE id = ?', [(int) $device['allocation_point_id']]);
-                $apName = $ap ? trim($ap['name']) : '';
-                if ($apName !== '' && strcasecmp($dpName, $apName) !== 0) {
-                    $mismatches[] = $device['device_id'] . " (AP: {$apName})";
+            // Enforce DP name must match device Company name
+            if (!empty($device['company_id'])) {
+                $company = Database::queryOne('SELECT name FROM companies WHERE id = ?', [(int) $device['company_id']]);
+                $companyName = $company ? trim($company['name']) : '';
+                if ($companyName !== '' && strcasecmp($dpName, $companyName) !== 0) {
+                    $mismatches[] = $device['device_id'] . " (Company: {$companyName})";
                     continue;
                 }
             }
@@ -175,14 +175,14 @@ class TransferController
 
         if ($created === 0 && !empty($mismatches)) {
             Response::error(
-                'Transfer rejected: Distribution Point "' . $dpName . '" does not match the Allocation Point for device(s): ' . implode(', ', $mismatches) . '. The DP name must match the AP name.',
+                'Transfer rejected: Distribution Point "' . $dpName . '" does not match the Company for device(s): ' . implode(', ', $mismatches) . '. The DP name must match the device Company name.',
                 422
             );
         }
 
         $msg = "$created transfer record(s) created";
         if (!empty($mismatches)) {
-            $msg .= '. Skipped ' . count($mismatches) . ' device(s) due to DP/AP name mismatch: ' . implode(', ', $mismatches);
+            $msg .= '. Skipped ' . count($mismatches) . ' device(s) due to DP/Company name mismatch: ' . implode(', ', $mismatches);
         }
         Response::success(['created' => $created, 'mismatches' => $mismatches], $msg);
     }
