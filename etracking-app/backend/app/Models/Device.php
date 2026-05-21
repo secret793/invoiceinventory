@@ -39,9 +39,11 @@ class Device extends BaseModel
         $whereStr = $where ? implode(' AND ', $where) : '';
 
         return static::paginate($page, $perPage, $whereStr, $params,
-            'd.*, ap.name as allocation_point_name, dp.name as distribution_point_name',
+            'd.*, ap.name as allocation_point_name, dp.name as distribution_point_name, c.name as company_name, u.name as added_by_name',
             'd LEFT JOIN allocation_points ap ON d.allocation_point_id = ap.id
-             LEFT JOIN distribution_points dp ON d.distribution_point_id = dp.id',
+             LEFT JOIN distribution_points dp ON d.distribution_point_id = dp.id
+             LEFT JOIN companies c ON d.company_id = c.id
+             LEFT JOIN users u ON d.user_id = u.id',
             'd.date_received DESC'
         );
     }
