@@ -188,6 +188,10 @@ class DeviceController
 
         // First row = headers
         $headers = array_map('strtolower', array_map('trim', array_shift($rows)));
+        // Strip UTF-8 BOM from the very first header (Excel saves CSV with BOM)
+        if (isset($headers[0])) {
+            $headers[0] = ltrim($headers[0], "\xEF\xBB\xBF\xef\xbb\xbf");
+        }
         $headerMap = array_flip($headers);
 
         $col = function (array $row, string ...$names) use ($headerMap): string {
@@ -217,8 +221,18 @@ class DeviceController
             $deviceType = $col($row, 'device type', 'device_type', 'type');
             if (!$deviceType) { $errors[] = "Row " . ($i + 2) . ": Device Type is required"; $skipped++; continue; }
 
-            $dateReceived = $col($row, 'date received', 'date_received', 'date');
-            if (!$dateReceived) $dateReceived = date('Y-m-d');
+            $rawDate = $col($row, 'date received', 'date_received', 'date');
+            if (!$rawDate) {
+                $dateReceived = date('Y-m-d');
+            } elseif (preg_match('/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/', $rawDate, $m)) {
+                // DD/MM/YYYY → YYYY-MM-DD
+                $dateReceived = sprintf('%04d-%02d-%02d', $m[3], $m[2], $m[1]);
+            } elseif (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $rawDate)) {
+                $dateReceived = $rawDate; // already ISO
+            } else {
+                $ts = strtotime($rawDate);
+                $dateReceived = $ts ? date('Y-m-d', $ts) : date('Y-m-d');
+            }
 
             $status = strtoupper($col($row, 'status'));
             $allowedStatuses = ['UNCONFIGURED', 'CONFIGURED', 'ONLINE', 'OFFLINE', 'DAMAGED', 'FIXED', 'LOST'];
