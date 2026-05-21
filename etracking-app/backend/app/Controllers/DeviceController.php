@@ -4,7 +4,7 @@ namespace App\Controllers;
 
 use App\Core\Request;
 use App\Core\Response;
-use App\Models\AllocationPoint;
+use App\Models\Company;
 use App\Models\Device;
 use App\Models\Store;
 use App\Services\NotificationService;
@@ -43,10 +43,9 @@ class DeviceController
     public function store(Request $req): void
     {
         $data = $req->validated([
-            'device_type'         => 'required',
-            'device_id'           => 'required',
-            'date_received'       => 'required',
-            'allocation_point_id' => 'required',
+            'device_type'  => 'required',
+            'device_id'    => 'required',
+            'date_received'=> 'required',
         ]);
 
         $user = $req->user();
@@ -153,14 +152,14 @@ class DeviceController
         // BOM for Excel UTF-8 compatibility
         echo "\xEF\xBB\xBF";
 
-        $headers = ['Device ID', 'Device Type', 'Serial Number', 'Batch Number', 'Date Received', 'Status', 'SIM Number', 'SIM Operator', 'Allocation Point', 'Notes'];
+        $headers = ['Device ID', 'Device Type', 'Serial Number', 'Batch Number', 'Date Received', 'Status', 'SIM Number', 'SIM Operator', 'Company', 'Notes'];
         echo implode(',', $headers) . "\r\n";
 
         // Example rows — Device ID must be numbers only, no length limit
         $examples = [
             ['1001', 'JT701',  'SN-20240001', 'BATCH-' . date('Ymd'), date('Y-m-d'), 'UNCONFIGURED', '',           'Africell', '', ''],
-            ['1002', 'JT709A', 'SN-20240002', 'BATCH-' . date('Ymd'), date('Y-m-d'), 'CONFIGURED',   '2207000001', 'Gamcel',   'Banjul Port Authority', ''],
-            ['1003', 'JT709C', 'SN-20240003', 'BATCH-' . date('Ymd'), date('Y-m-d'), 'ONLINE',       '2207000002', 'QCell',    'Brikama Checkpoint', 'Example note'],
+            ['1002', 'JT709A', 'SN-20240002', 'BATCH-' . date('Ymd'), date('Y-m-d'), 'CONFIGURED',   '2207000001', 'Gamcel',   'Banjul Shipping Co.', ''],
+            ['1003', 'JT709C', 'SN-20240003', 'BATCH-' . date('Ymd'), date('Y-m-d'), 'ONLINE',       '2207000002', 'QCell',    'Atlantic Trading Ltd.', 'Example note'],
         ];
         foreach ($examples as $row) {
             echo implode(',', array_map(fn($v) => '"' . str_replace('"', '""', $v) . '"', $row)) . "\r\n";
@@ -234,33 +233,33 @@ class DeviceController
             try {
                 $batchNum = $col($row, 'batch number', 'batch_number', 'batch') ?: ('BATCH-' . date('Ymd'));
 
-                // Resolve allocation point by name (case-insensitive)
-                $apId = null;
-                $apName = $col($row, 'allocation point', 'allocation_point', 'ap');
-                if ($apName) {
-                    $ap = \App\Core\Database::queryOne(
-                        "SELECT id FROM allocation_points WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))",
-                        [$apName]
+                // Resolve company by name (case-insensitive)
+                $companyId = null;
+                $companyName = $col($row, 'company', 'company name', 'company_name');
+                if ($companyName) {
+                    $company = \App\Core\Database::queryOne(
+                        "SELECT id FROM companies WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))",
+                        [$companyName]
                     );
-                    if ($ap) {
-                        $apId = (int) $ap['id'];
+                    if ($company) {
+                        $companyId = (int) $company['id'];
                     } else {
-                        $errors[] = "Row " . ($i + 2) . ": Allocation point '$apName' not found — device imported without AP assignment";
+                        $errors[] = "Row " . ($i + 2) . ": Company '$companyName' not found — device imported without company assignment";
                     }
                 }
 
                 $device = Device::create([
-                    'device_id'            => $deviceId,
-                    'device_type'          => $deviceType,
-                    'serial_number'        => $col($row, 'serial number', 'serial_number', 'serial'),
-                    'batch_number'         => $batchNum,
-                    'date_received'        => $dateReceived,
-                    'status'               => $status,
-                    'sim_number'           => $col($row, 'sim number', 'sim_number', 'sim'),
-                    'sim_operator'         => $col($row, 'sim operator', 'sim_operator', 'operator'),
-                    'notes'                => $col($row, 'notes', 'note'),
-                    'allocation_point_id'  => $apId,
-                    'user_id'              => $user['id'],
+                    'device_id'    => $deviceId,
+                    'device_type'  => $deviceType,
+                    'serial_number'=> $col($row, 'serial number', 'serial_number', 'serial'),
+                    'batch_number' => $batchNum,
+                    'date_received'=> $dateReceived,
+                    'status'       => $status,
+                    'sim_number'   => $col($row, 'sim number', 'sim_number', 'sim'),
+                    'sim_operator' => $col($row, 'sim operator', 'sim_operator', 'operator'),
+                    'notes'        => $col($row, 'notes', 'note'),
+                    'company_id'   => $companyId,
+                    'user_id'      => $user['id'],
                 ]);
 
                 // Auto-create store entry
