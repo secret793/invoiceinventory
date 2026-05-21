@@ -25,6 +25,12 @@ export const configService = {
     update: (id, data) => api.put(`/destinations/${id}`, data).then(r => r.data.data),
     delete: (id)       => api.delete(`/destinations/${id}`).then(r => r.data),
   },
+  companies: {
+    list:   ()         => api.get('/companies').then(r => r.data.data),
+    create: (data)     => api.post('/companies', data).then(r => r.data.data),
+    update: (id, data) => api.put(`/companies/${id}`, data).then(r => r.data.data),
+    delete: (id)       => api.delete(`/companies/${id}`).then(r => r.data),
+  },
   settings: {
     list:   ()         => api.get('/system-settings').then(r => r.data.data),
     update: (id, val)  => api.put(`/system-settings/${id}`, { value: val }).then(r => r.data.data),
