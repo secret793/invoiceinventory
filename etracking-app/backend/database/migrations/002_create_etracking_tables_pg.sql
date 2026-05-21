@@ -601,3 +601,18 @@ ALTER TABLE receipts ADD COLUMN IF NOT EXISTS destination_id        BIGINT;
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS consignee_details     TEXT;
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS shipper_details       TEXT;
 ALTER TABLE receipts ADD COLUMN IF NOT EXISTS description_of_goods  TEXT;
+
+-- ── Companies (device owner / company assignment) ─────────────────────────
+CREATE TABLE IF NOT EXISTS companies (
+    id         BIGSERIAL PRIMARY KEY,
+    name       VARCHAR(200) NOT NULL,
+    status     VARCHAR(20)  NOT NULL DEFAULT 'Active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS company_id BIGINT NULL;
+ALTER TABLE devices DROP CONSTRAINT IF EXISTS devices_company_fk;
+ALTER TABLE devices ADD CONSTRAINT devices_company_fk
+    FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS devices_company_idx ON devices (company_id);
