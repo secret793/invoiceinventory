@@ -84,11 +84,26 @@ class DistributionPointController
         if (empty($ids)) Response::error('device_ids are required');
         if (!$apId)      Response::error('allocation_point_id is required');
 
-        $created = 0;
+        $ap = Database::queryOne('SELECT id, name FROM allocation_points WHERE id = ?', [(int) $apId]);
+        if (!$ap) Response::error('Allocation point not found', 404);
+        $apName = trim($ap['name']);
+
+        $created    = 0;
+        $mismatches = [];
         foreach ($ids as $deviceId) {
             $device = Device::find((int) $deviceId);
             if (!$device) continue;
             if ($device['status'] === 'RECEIVED') continue;
+
+            // Enforce AP name must match device Company name
+            if (!empty($device['company_id'])) {
+                $company = Database::queryOne('SELECT name FROM companies WHERE id = ?', [(int) $device['company_id']]);
+                $companyName = $company ? trim($company['name']) : '';
+                if ($companyName !== '' && strcasecmp($apName, $companyName) !== 0) {
+                    $mismatches[] = $device['device_id'] . " (Company: {$companyName})";
+                    continue;
+                }
+            }
 
             Transfer::create([
                 'device_id'                  => $deviceId,
@@ -108,7 +123,18 @@ class DistributionPointController
             $created++;
         }
 
-        Response::success(['sent' => $created], "$created device(s) sent to allocation point");
+        if ($created === 0 && !empty($mismatches)) {
+            Response::error(
+                'Transfer rejected: Allocation Point "' . $apName . '" does not match the Company for device(s): ' . implode(', ', $mismatches) . '. The AP name must match the device Company name.',
+                422
+            );
+        }
+
+        $msg = "$created device(s) sent to allocation point";
+        if (!empty($mismatches)) {
+            $msg .= '. Skipped ' . count($mismatches) . ' device(s) due to AP/Company name mismatch: ' . implode(', ', $mismatches);
+        }
+        Response::success(['sent' => $created, 'mismatches' => $mismatches], $msg);
     }
 
     public function returnToInventory(Request $req): void
