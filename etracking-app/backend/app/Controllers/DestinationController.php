@@ -9,13 +9,18 @@ use App\Models\Permission;
 
 class DestinationController
 {
-    /** Convert empty strings to null for numeric / FK fields */
+    /** Coerce types so PostgreSQL binding works correctly */
     private function sanitize(array $data): array
     {
+        // Empty strings → NULL for numeric / FK columns
         foreach (['regime_id', 'latitude', 'longitude'] as $field) {
             if (array_key_exists($field, $data) && $data[$field] === '') {
                 $data[$field] = null;
             }
+        }
+        // PHP false → '' when PDO binds to PostgreSQL BOOLEAN — use 'false'/'true' strings instead
+        if (array_key_exists('is_default_location', $data)) {
+            $data['is_default_location'] = filter_var($data['is_default_location'], FILTER_VALIDATE_BOOLEAN) ? 'true' : 'false';
         }
         return $data;
     }
