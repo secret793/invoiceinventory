@@ -52,6 +52,7 @@ import RoutesPage      from './pages/config/RoutesPage';
 import LongRoutesPage  from './pages/config/LongRoutesPage';
 import RegimesPage     from './pages/config/RegimesPage';
 import DestinationsPage from './pages/config/DestinationsPage';
+import CompaniesPage    from './pages/config/CompaniesPage';
 import UsersPage       from './pages/config/UsersPage';
 import RolesPage        from './pages/config/RolesPage';
 import PermissionsPage  from './pages/config/PermissionsPage';
@@ -120,6 +121,7 @@ export default function App() {
             <Route path="/config/long-routes"  element={<LongRoutesPage />} />
             <Route path="/config/regimes"      element={<RegimesPage />} />
             <Route path="/config/destinations" element={<DestinationsPage />} />
+            <Route path="/config/companies"   element={<CompaniesPage />} />
             <Route path="/config/users"        element={<UsersPage />} />
             <Route path="/config/roles"        element={<RolesPage />} />
             <Route path="/config/permissions"  element={<PermissionsPage />} />
