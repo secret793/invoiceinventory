@@ -139,6 +139,7 @@ export default function Sidebar() {
         { label: 'Long Routes',         path: '/config/long-routes'         },
         { label: 'Regimes',             path: '/config/regimes'             },
         { label: 'Destinations',        path: '/config/destinations'        },
+        { label: 'Companies',           path: '/config/companies'           },
         ...(isSA ? [
           { label: 'Users',       path: '/config/users'       },
           { label: 'Roles',       path: '/config/roles'       },
