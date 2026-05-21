@@ -9,22 +9,38 @@ use App\Models\Permission;
 
 class DestinationController
 {
+    /** Convert empty strings to null for numeric / FK fields */
+    private function sanitize(array $data): array
+    {
+        foreach (['regime_id', 'latitude', 'longitude'] as $field) {
+            if (array_key_exists($field, $data) && $data[$field] === '') {
+                $data[$field] = null;
+            }
+        }
+        return $data;
+    }
+
     public function index(Request $req): void  { Response::success(Destination::allOrdered()); }
     public function show(Request $req): void   { Response::success(Destination::findOrFail((int) $req->param('id'))); }
+
     public function store(Request $req): void  {
         $data = $req->validated(['name' => 'required']);
-        $data = array_merge($data, $req->json());
+        $data = $this->sanitize(array_merge($data, $req->json()));
         $row  = Destination::create($data);
-        // Auto-create permissions
         Permission::createForDestination(Destination::slugify($data['name']));
         Response::success($row, 'Destination created', 201);
     }
+
     public function update(Request $req): void {
-        $id = (int) $req->param('id'); Destination::findOrFail($id);
-        Response::success(Destination::update($id, $req->json()), 'Destination updated');
+        $id = (int) $req->param('id');
+        Destination::findOrFail($id);
+        Response::success(Destination::update($id, $this->sanitize($req->json())), 'Destination updated');
     }
+
     public function destroy(Request $req): void {
-        $id = (int) $req->param('id'); Destination::findOrFail($id); Destination::delete($id);
+        $id = (int) $req->param('id');
+        Destination::findOrFail($id);
+        Destination::delete($id);
         Response::success(null, 'Destination deleted');
     }
 }
