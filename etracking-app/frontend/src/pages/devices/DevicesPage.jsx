@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useDevices } from '../../hooks/useDevices';
 import { deviceService } from '../../services/deviceService';
-import { allocationService } from '../../services/allocationService';
+import { configService } from '../../services/configService';
 import { distributionService } from '../../services/distributionService';
 import { useNotification } from '../../contexts/NotificationContext';
 import api from '../../services/api';
@@ -29,7 +29,7 @@ const STATUS_STYLES = {
 export default function DevicesPage() {
   const { devices, meta, stats, loading, fetch, fetchStats, changePage, changeFilters } = useDevices();
   const { notify } = useNotification();
-  const [aps, setAps] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [dps, setDps] = useState([]);
 
   const [showForm, setShowForm]   = useState(false);
@@ -56,7 +56,7 @@ export default function DevicesPage() {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    allocationService.list().then(setAps).catch(() => {});
+    configService.companies.list().then(setCompanies).catch(() => {});
     distributionService.list().then(setDps).catch(() => {});
   }, []);
 
@@ -158,9 +158,10 @@ export default function DevicesPage() {
     { header: 'Batch',        key: 'batch_number', render: v => v || '—' },
     { header: 'Status',       key: 'status',        render: v => <StatusBadge status={v} /> },
     { header: 'Distribution Point', key: 'distribution_point_name', render: v => v || '—' },
-    { header: 'Allocation Point',   key: 'allocation_point_name',   render: v => v || '—' },
+    { header: 'Company',   key: 'company_name',   render: v => v || '—' },
     { header: 'SIM',          key: 'sim_number',   render: v => v || '—' },
     { header: 'Operator',     key: 'sim_operator', render: v => v || '—' },
+    { header: 'Added By',     key: 'added_by_name', render: v => v || '—' },
     { header: 'Date Received', key: 'date_received', render: v => v ? new Date(v).toLocaleDateString() : '—' },
     {
       header: 'Actions', key: 'id',
@@ -277,7 +278,7 @@ export default function DevicesPage() {
         title={editing ? 'Edit Device' : 'New Device'} size="lg">
         <DeviceForm initial={editing || {}} onSubmit={handleSave} loading={saving}
           onCancel={() => { setShowForm(false); setEditing(null); }}
-          allocationPoints={aps} distributionPoints={dps} />
+          companies={companies} distributionPoints={dps} />
       </Modal>
 
       {/* Import Products Modal */}
