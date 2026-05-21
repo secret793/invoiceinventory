@@ -213,6 +213,13 @@ $router->put('/api/permissions/{id}',         [\App\Controllers\PermissionContro
 $router->patch('/api/permissions/{id}',       [\App\Controllers\PermissionController::class, 'update'],     ['auth']);
 $router->delete('/api/permissions/{id}',      [\App\Controllers\PermissionController::class, 'destroy'],    ['auth']);
 
+// ── Companies ─────────────────────────────────────────────────────────────────
+$router->get('/api/companies',          [\App\Controllers\CompanyController::class, 'index'],   ['auth']);
+$router->post('/api/companies',         [\App\Controllers\CompanyController::class, 'store'],   ['auth']);
+$router->put('/api/companies/{id}',     [\App\Controllers\CompanyController::class, 'update'],  ['auth']);
+$router->patch('/api/companies/{id}',   [\App\Controllers\CompanyController::class, 'update'],  ['auth']);
+$router->delete('/api/companies/{id}',  [\App\Controllers\CompanyController::class, 'destroy'], ['auth']);
+
 // ── Reports ───────────────────────────────────────────────────────────────────
 $router->get('/api/reports/dispatch/{id}',             [\App\Controllers\ReportController::class, 'dispatchReport'],         ['auth']);
 $router->get('/api/reports/confirmed-affix',           [\App\Controllers\ReportController::class, 'confirmedAffixReport'],   ['auth']);
