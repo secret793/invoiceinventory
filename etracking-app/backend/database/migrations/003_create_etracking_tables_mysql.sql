@@ -463,6 +463,21 @@ CREATE TABLE IF NOT EXISTS device_retrieval_logs (
     created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ── Companies (device owner / company assignment) ────────────────────────
+CREATE TABLE IF NOT EXISTS companies (
+    id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    name       VARCHAR(200)    NOT NULL,
+    status     VARCHAR(20)     NOT NULL DEFAULT 'Active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS company_id BIGINT UNSIGNED NULL;
+ALTER TABLE devices DROP FOREIGN KEY IF EXISTS devices_company_fk;
+ALTER TABLE devices ADD CONSTRAINT devices_company_fk
+    FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS devices_company_idx ON devices (company_id);
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ============================================================
