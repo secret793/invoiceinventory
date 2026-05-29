@@ -16,12 +16,15 @@ export default function AssignToAgentForm({ assignment, onSubmit, loading, onCan
 
   useEffect(() => {
     Promise.all([
-      configService.routes.list(),
-      configService.longRoutes.list(),
-      configService.regimes.list(),
-      configService.destinations.list(),
+      configService.routes.list({ page: 1, per_page: 1000 }),
+      configService.longRoutes.list({ page: 1, per_page: 1000 }),
+      configService.regimes.list({ page: 1, per_page: 1000 }),
+      configService.destinations.list({ page: 1, per_page: 1000 }),
     ]).then(([r, lr, reg, dest]) => {
-      setRoutes(r || []); setLongRoutes(lr || []); setRegimes(reg || []); setDests(dest || []);
+      setRoutes(r?.data || []);
+      setLongRoutes(lr?.data || []);
+      setRegimes(reg?.data || []);
+      setDests(dest?.data || []);
     });
   }, []);
 

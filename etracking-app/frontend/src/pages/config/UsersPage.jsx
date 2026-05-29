@@ -50,7 +50,7 @@ export default function UsersPage() {
 
   useEffect(() => {
     load();
-    configService.roles.list().then(setRoles).catch(() => {});
+    configService.roles.list({ page: 1, per_page: 1000 }).then(res => setRoles(res.data || [])).catch(() => {});
     configService.permissions.list().then(setAllPerms).catch(() => {});
   }, []);
 
@@ -122,7 +122,12 @@ export default function UsersPage() {
 
       <div className="card">
         <DataTable columns={columns} data={users} loading={loading} emptyMessage="No users found." />
-        <Pagination meta={meta} onPageChange={p => { const np = { ...params, page: p }; setParams(np); load(np); }} />
+        <Pagination
+          meta={meta}
+          onPageChange={p => { const np = { ...params, page: p }; setParams(np); load(np); }}
+          onPerPageChange={(perPage) => { const np = { ...params, per_page: perPage, page: 1 }; setParams(np); load(np); }}
+          allowAll
+        />
       </div>
 
       <Modal isOpen={showForm} onClose={() => setShowForm(false)}
@@ -157,7 +162,7 @@ export default function UsersPage() {
             <h4 className="text-xs font-bold uppercase tracking-widest mb-3 pb-1 border-b" style={{ color: '#1E2D7A' }}>
               2 — Assign Roles
             </h4>
-            {roles.length === 0 ? (
+            {!Array.isArray(roles) || roles.length === 0 ? (
               <p className="text-xs text-gray-400 italic">No roles defined. Create roles first in the Roles page.</p>
             ) : (
               <div className="flex flex-wrap gap-2">

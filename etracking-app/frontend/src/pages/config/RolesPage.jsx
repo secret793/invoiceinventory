@@ -3,6 +3,7 @@ import { configService } from '../../services/configService';
 import { useNotification } from '../../contexts/NotificationContext';
 import PageHeader from '../../components/common/PageHeader';
 import DataTable from '../../components/common/DataTable';
+import Pagination from '../../components/common/Pagination';
 import Modal from '../../components/common/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import { Input } from '../../components/common/FormField';
@@ -10,21 +11,23 @@ import { Input } from '../../components/common/FormField';
 export default function RolesPage() {
   const { notify } = useNotification();
   const [roles, setRoles]       = useState([]);
+  const [meta, setMeta]         = useState({});
   const [perms, setPerms]       = useState([]);
   const [loading, setLoading]   = useState(false);
+  const [params, setParams]     = useState({ page: 1, per_page: 25 });
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing]   = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [saving, setSaving]     = useState(false);
   const [form, setForm] = useState({ name: '', permissions: [] });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (p = params) => {
     setLoading(true);
     try {
-      const [r, p] = await Promise.all([configService.roles.list(), configService.permissions.list()]);
-      setRoles(r || []); setPerms(p || []);
+      const [r, permissions] = await Promise.all([configService.roles.list(p), configService.permissions.list()]);
+      setRoles(r.data || []); setMeta(r.meta || {}); setPerms(permissions || []);
     } catch { } finally { setLoading(false); }
-  }, []);
+  }, [params]);
 
   useEffect(() => { load(); }, []);
 
@@ -77,6 +80,12 @@ export default function RolesPage() {
         actions={<button onClick={openNew} className="btn-primary">+ Add Role</button>} />
       <div className="card">
         <DataTable columns={columns} data={roles} loading={loading} emptyMessage="No roles defined." />
+        <Pagination
+          meta={meta}
+          onPageChange={p => { const np = { ...params, page: p }; setParams(np); load(np); }}
+          onPerPageChange={(perPage) => { const np = { ...params, per_page: perPage, page: 1 }; setParams(np); load(np); }}
+          allowAll
+        />
       </div>
 
       <Modal isOpen={showForm} onClose={() => setShowForm(false)} title={editing ? `Edit Role: ${editing.name}` : 'Add Role'} size="xl"

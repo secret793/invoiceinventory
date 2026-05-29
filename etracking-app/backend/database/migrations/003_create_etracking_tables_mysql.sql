@@ -165,21 +165,35 @@ CREATE TABLE IF NOT EXISTS transfers (
 CREATE TABLE IF NOT EXISTS routes (
     id              BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     name            VARCHAR(255) NOT NULL,
+    allocation_point_id BIGINT NULL,
+    destination_id  BIGINT NULL,
+    is_active       TINYINT(1) DEFAULT 1,
     allowed_days    INT DEFAULT 1,
     base_usd_amount DECIMAL(10,2) DEFAULT 0,
     description     TEXT,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT routes_ap_fk FOREIGN KEY (allocation_point_id) REFERENCES allocation_points(id) ON DELETE SET NULL,
+    CONSTRAINT routes_destination_fk FOREIGN KEY (destination_id) REFERENCES destinations(id) ON DELETE SET NULL,
+    INDEX routes_ap_idx (allocation_point_id),
+    INDEX routes_destination_idx (destination_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS long_routes (
     id              BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     name            VARCHAR(255) NOT NULL,
+    allocation_point_id BIGINT NULL,
+    destination_id  BIGINT NULL,
+    is_active       TINYINT(1) DEFAULT 1,
     allowed_days    INT DEFAULT 3,
     base_usd_amount DECIMAL(10,2) DEFAULT 0,
     description     TEXT,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT long_routes_ap_fk FOREIGN KEY (allocation_point_id) REFERENCES allocation_points(id) ON DELETE SET NULL,
+    CONSTRAINT long_routes_destination_fk FOREIGN KEY (destination_id) REFERENCES destinations(id) ON DELETE SET NULL,
+    INDEX long_routes_ap_idx (allocation_point_id),
+    INDEX long_routes_destination_idx (destination_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Regimes & Destinations ────────────────────────────────
@@ -193,13 +207,18 @@ CREATE TABLE IF NOT EXISTS regimes (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS destinations (
-    id          BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    name        VARCHAR(255) NOT NULL,
-    country     VARCHAR(100),
-    description TEXT,
-    regime_id   BIGINT,
-    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    id                   BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    name                 VARCHAR(255) NOT NULL,
+    country              VARCHAR(100),
+    address              VARCHAR(255),
+    description          TEXT,
+    status               VARCHAR(20) NOT NULL DEFAULT 'Active',
+    regime_id            BIGINT,
+    latitude             DECIMAL(10,7) NULL,
+    longitude            DECIMAL(10,7) NULL,
+    is_default_location  TINYINT(1) NOT NULL DEFAULT 0,
+    created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT destinations_regime_fk FOREIGN KEY (regime_id) REFERENCES regimes(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -257,6 +276,8 @@ CREATE TABLE IF NOT EXISTS confirmed_affixeds (
     route_id              BIGINT,
     long_route_id         BIGINT,
     manifest_date         DATE,
+    etd                   TIMESTAMP NULL,
+    eta                   TIMESTAMP NULL,
     agency                VARCHAR(255),
     agent_contact         VARCHAR(100),
     receipt_id            BIGINT,
@@ -274,7 +295,17 @@ CREATE TABLE IF NOT EXISTS confirmed_affix_logs (
     device_id            BIGINT,
     confirmed_affixed_id BIGINT,
     boe                  VARCHAR(100),
+    sad_number           VARCHAR(100),
     vehicle_number       VARCHAR(100),
+    regime               VARCHAR(100),
+    destination          VARCHAR(255),
+    destination_id       BIGINT,
+    route_id             BIGINT,
+    long_route_id        BIGINT,
+    agency               VARCHAR(255),
+    driver_name          VARCHAR(255),
+    etd                  TIMESTAMP NULL,
+    eta                  TIMESTAMP NULL,
     allocation_point_id  BIGINT,
     affixing_date        TIMESTAMP NULL,
     affixed_by           BIGINT,
@@ -312,7 +343,10 @@ CREATE TABLE IF NOT EXISTS receipts (
     created_by           BIGINT,
     created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT receipts_ap_fk FOREIGN KEY (allocation_point_id) REFERENCES allocation_points(id) ON DELETE SET NULL
+    CONSTRAINT receipts_ap_fk FOREIGN KEY (allocation_point_id) REFERENCES allocation_points(id) ON DELETE SET NULL,
+    INDEX receipts_receipt_number_idx (receipt_number),
+    INDEX receipts_sad_number_idx (sad_number),
+    INDEX receipts_used_idx (used)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Device Retrievals ─────────────────────────────────────
@@ -493,7 +527,8 @@ VALUES ('Super Admin', 'admin@gnsw.gm', 'admin',
 INSERT IGNORE INTO roles (name, guard_name) VALUES
     ('Super Admin', 'web'), ('Warehouse Manager', 'web'), ('Data Entry Officer', 'web'),
     ('Retrieval Officer', 'web'), ('Finance Officer', 'web'), ('Report Viewer', 'web'),
-    ('Distribution Officer', 'web'), ('Monitoring Officer', 'web'), ('Viewer', 'web');
+    ('Distribution Officer', 'web'), ('Monitoring Officer', 'web'), ('Allocation Officer', 'web'),
+    ('Affixing Officer', 'web'), ('Viewer', 'web');
 
 -- System Settings
 INSERT IGNORE INTO system_settings (`key`, value, description) VALUES
@@ -517,18 +552,42 @@ INSERT IGNORE INTO distribution_points (name, location, region, is_active) VALUE
     ('Janjanbureh Depot',              'Janjanbureh Island, Central River',     'Central River Region',1);
 
 -- Short Routes
-INSERT IGNORE INTO routes (name, allowed_days, base_usd_amount, description) VALUES
-    ('Banjul – Serrekunda', 1, 25.00,  'Short urban route between Banjul and Serrekunda'),
-    ('Banjul – Brikama',    1, 35.00,  'Route from Banjul Port to Brikama Checkpoint'),
-    ('Serrekunda – Soma',   1, 55.00,  'West Coast to Central River short route'),
-    ('Brikama – Farafenni', 1, 65.00,  'West Coast Region to North Bank crossing'),
-    ('Banjul – Kanifing',   1, 20.00,  'Intra-city Banjul to Kanifing route');
+INSERT IGNORE INTO routes (name, allocation_point_id, destination_id, is_active, allowed_days, base_usd_amount, description) VALUES
+    ('Banjul – Serrekunda',
+        (SELECT id FROM allocation_points WHERE name = 'Banjul Port Authority' LIMIT 1),
+        (SELECT id FROM destinations WHERE name = 'Kaolack' LIMIT 1),
+        1, 1, 25.00,  'Short urban route between Banjul and Serrekunda'),
+    ('Banjul – Brikama',
+        (SELECT id FROM allocation_points WHERE name = 'Banjul Port Authority' LIMIT 1),
+        (SELECT id FROM destinations WHERE name = 'Dakar Port' LIMIT 1),
+        1, 1, 35.00,  'Route from Banjul Port to Brikama Checkpoint'),
+    ('Serrekunda – Soma',
+        (SELECT id FROM allocation_points WHERE name = 'Brikama Checkpoint' LIMIT 1),
+        (SELECT id FROM destinations WHERE name = 'Ziguinchor' LIMIT 1),
+        1, 1, 55.00,  'West Coast to Central River short route'),
+    ('Brikama – Farafenni',
+        (SELECT id FROM allocation_points WHERE name = 'Brikama Checkpoint' LIMIT 1),
+        (SELECT id FROM destinations WHERE name = 'Bissau' LIMIT 1),
+        1, 1, 65.00,  'West Coast Region to North Bank crossing'),
+    ('Banjul – Kanifing',
+        (SELECT id FROM allocation_points WHERE name = 'Banjul Port Authority' LIMIT 1),
+        (SELECT id FROM destinations WHERE name = 'Conakry' LIMIT 1),
+        1, 1, 20.00,  'Intra-city Banjul to Kanifing route');
 
 -- Long Routes
-INSERT IGNORE INTO long_routes (name, allowed_days, base_usd_amount, description) VALUES
-    ('Banjul – Basse Santa Su', 3, 120.00, 'Full cross-country route to Upper River Region'),
-    ('Banjul – Janjanbureh',    3,  95.00, 'Trans-Gambia corridor to Central River Region'),
-    ('Brikama – Basse',         3, 110.00, 'South-bank long haul from West Coast to Upper River');
+INSERT IGNORE INTO long_routes (name, allocation_point_id, destination_id, is_active, allowed_days, base_usd_amount, description) VALUES
+    ('Banjul – Basse Santa Su',
+        (SELECT id FROM allocation_points WHERE name = 'Banjul Port Authority' LIMIT 1),
+        (SELECT id FROM destinations WHERE name = 'Conakry' LIMIT 1),
+        1, 3, 120.00, 'Full cross-country route to Upper River Region'),
+    ('Banjul – Janjanbureh',
+        (SELECT id FROM allocation_points WHERE name = 'Banjul Port Authority' LIMIT 1),
+        (SELECT id FROM destinations WHERE name = 'Dakar Port' LIMIT 1),
+        1, 3,  95.00, 'Trans-Gambia corridor to Central River Region'),
+    ('Brikama – Basse',
+        (SELECT id FROM allocation_points WHERE name = 'Brikama Checkpoint' LIMIT 1),
+        (SELECT id FROM destinations WHERE name = 'Bissau' LIMIT 1),
+        1, 3, 110.00, 'South-bank long haul from West Coast to Upper River');
 
 -- Regimes
 INSERT IGNORE INTO regimes (name, description, is_active) VALUES
@@ -543,3 +602,19 @@ INSERT IGNORE INTO destinations (name, country, description, regime_id) VALUES
     ('Conakry',     'Guinea',        'Capital city and main port of Guinea',(SELECT id FROM regimes WHERE name = 'SAD'   LIMIT 1)),
     ('Bissau',      'Guinea-Bissau', 'Capital of Guinea-Bissau',           (SELECT id FROM regimes WHERE name = 'T1'     LIMIT 1)),
     ('Kaolack',     'Senegal',       'Central Senegal trading hub',         (SELECT id FROM regimes WHERE name = 'Export' LIMIT 1));
+
+-- ── Companies (device owner / company assignment) ─────────────────────────
+CREATE TABLE IF NOT EXISTS companies (
+    id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    name       VARCHAR(200)    NOT NULL,
+    status     VARCHAR(20)     NOT NULL DEFAULT 'Active',
+    created_at TIMESTAMP       NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP       NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE devices
+    ADD COLUMN IF NOT EXISTS company_id BIGINT UNSIGNED NULL,
+    ADD CONSTRAINT devices_company_fk
+        FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS devices_company_idx ON devices (company_id);

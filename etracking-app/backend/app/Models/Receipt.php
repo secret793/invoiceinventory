@@ -18,9 +18,15 @@ class Receipt extends BaseModel
         if (!empty($filters['from'])) { $where[] = 'r.date >= ?'; $params[] = $filters['from'] . ' 00:00:00'; }
         if (!empty($filters['to']))   { $where[] = 'r.date <= ?'; $params[] = $filters['to']   . ' 23:59:59'; }
         if (!empty($filters['search'])) {
-            $s = '%' . $filters['search'] . '%';
-            $where[] = '(r.receipt_number ILIKE ? OR r.sad_number ILIKE ? OR r.agent_name ILIKE ?)';
-            array_push($params, $s, $s, $s);
+            $q = trim((string) $filters['search']);
+            $s = '%' . $q . '%';
+            if (ctype_digit($q)) {
+                $where[] = '(r.receipt_number ILIKE ? OR r.sad_number ILIKE ? OR r.agent_name ILIKE ? OR r.id = ?)';
+                array_push($params, $s, $s, $s, (int) $q);
+            } else {
+                $where[] = '(r.receipt_number ILIKE ? OR r.sad_number ILIKE ? OR r.agent_name ILIKE ?)';
+                array_push($params, $s, $s, $s);
+            }
         }
 
         $whereStr = $where ? implode(' AND ', $where) : '';

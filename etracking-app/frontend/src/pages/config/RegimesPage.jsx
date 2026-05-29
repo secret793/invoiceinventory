@@ -3,6 +3,7 @@ import { configService } from '../../services/configService';
 import { useNotification } from '../../contexts/NotificationContext';
 import PageHeader from '../../components/common/PageHeader';
 import DataTable from '../../components/common/DataTable';
+import Pagination from '../../components/common/Pagination';
 import Modal from '../../components/common/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import { Input, Select } from '../../components/common/FormField';
@@ -10,18 +11,20 @@ import { Input, Select } from '../../components/common/FormField';
 export default function RegimesPage() {
   const { notify } = useNotification();
   const [rows, setRows]         = useState([]);
+  const [meta, setMeta]         = useState({});
   const [loading, setLoading]   = useState(false);
+  const [params, setParams]     = useState({ page: 1, per_page: 25 });
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing]   = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [saving, setSaving]     = useState(false);
   const [form, setForm] = useState({ name: '', description: '', is_active: 1 });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (p = params) => {
     setLoading(true);
-    try { setRows(await configService.regimes.list() || []); } catch { }
+    try { const res = await configService.regimes.list(p); setRows(res.data || []); setMeta(res.meta || {}); } catch { }
     finally { setLoading(false); }
-  }, []);
+  }, [params]);
 
   useEffect(() => { load(); }, []);
 
@@ -61,6 +64,12 @@ export default function RegimesPage() {
         actions={<button onClick={openNew} className="btn-primary">+ Add Regime</button>} />
       <div className="card">
         <DataTable columns={columns} data={rows} loading={loading} emptyMessage="No regimes configured." />
+        <Pagination
+          meta={meta}
+          onPageChange={p => { const np = { ...params, page: p }; setParams(np); load(np); }}
+          onPerPageChange={(perPage) => { const np = { ...params, per_page: perPage, page: 1 }; setParams(np); load(np); }}
+          allowAll
+        />
       </div>
       <Modal isOpen={showForm} onClose={() => setShowForm(false)} title={editing ? 'Edit Regime' : 'Add Regime'}
         footer={<><button onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button><button form="regime-form" type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving…' : 'Save'}</button></>}>

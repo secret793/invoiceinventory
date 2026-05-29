@@ -135,7 +135,7 @@ export default function Sidebar() {
       const configItems = [
         { label: 'Distribution Points', path: '/config/distribution-points' },
         { label: 'Allocation Points',   path: '/config/allocation-points'   },
-        { label: 'Routes',              path: '/config/routes'              },
+        { label: 'Short Routes',        path: '/config/routes'              },
         { label: 'Long Routes',         path: '/config/long-routes'         },
         { label: 'Regimes',             path: '/config/regimes'             },
         { label: 'Destinations',        path: '/config/destinations'        },
@@ -173,7 +173,7 @@ export default function Sidebar() {
               : empty('No APs')}
           </>)}
 
-          {renderLink('/confirmed-affixed', '✅', 'Confirmed Dispatch')}
+          {renderLink('/confirmed-affixed', '✅', 'Confirmed Affixed')}
           {renderLink('/device-retrievals', '🔙', 'Device Retrievals')}
           {renderLink('/invoices',          '🧾', 'Overstay Invoices')}
           {renderLink('/monitoring',        '👁️', 'Monitoring')}
@@ -252,7 +252,7 @@ export default function Sidebar() {
         </>)}
 
         {/* Affixing Officer only */}
-        {showAffOnly && renderGroup('aff-g', '✅', 'Confirmed Dispatch', <>
+        {showAffOnly && renderGroup('aff-g', '✅', 'Confirmed Affixed', <>
           {renderSub('/confirmed-affixed', 'Confirmed Affixed')}
         </>)}
 

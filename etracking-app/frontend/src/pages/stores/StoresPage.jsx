@@ -202,7 +202,12 @@ export default function StoresPage() {
           onSelectAll={checked => setSelected(checked ? items.map(i => i.id) : [])}
           emptyMessage="No stock items found. Add devices in the Devices / Trackers section." />
         <div className="px-4 py-3 border-t border-gray-100">
-          <Pagination meta={meta} onPageChange={p => { const np = { ...params, page: p }; setParams(np); fetchItems(np); }} />
+          <Pagination
+            meta={meta}
+            onPageChange={p => { const np = { ...params, page: p }; setParams(np); fetchItems(np); }}
+            onPerPageChange={(perPage) => { const np = { ...params, per_page: perPage, page: 1 }; setParams(np); fetchItems(np); }}
+            allowAll
+          />
         </div>
       </div>
 

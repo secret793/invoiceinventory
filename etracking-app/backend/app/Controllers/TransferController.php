@@ -13,7 +13,7 @@ class TransferController
     public function index(Request $req): void
     {
         $page    = max(1, (int) $req->query('page', 1));
-        $perPage = min(100, max(1, (int) $req->query('per_page', 25)));
+        $perPage = min(1000, max(1, (int) $req->query('per_page', 25)));
         $filters = [
             'transfer_status' => $req->query('transfer_status'),
             'transfer_type'   => $req->query('transfer_type'),

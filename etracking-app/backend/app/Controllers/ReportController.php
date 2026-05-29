@@ -9,6 +9,22 @@ use App\Services\ExportService;
 
 class ReportController
 {
+    private function normalizeDateTime(string $dateOrDateTime, string $time, string $defaultTime): ?string
+    {
+        $v = trim($dateOrDateTime);
+        if ($v === '') {
+            return null;
+        }
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/', $v)) {
+            $v = str_replace('T', ' ', $v);
+            return strlen($v) === 16 ? ($v . ':00') : $v;
+        }
+
+        $t = trim($time) !== '' ? trim($time) : $defaultTime;
+        return $v . ' ' . (strlen($t) === 5 ? ($t . ':00') : $t);
+    }
+
     private function dateParams(Request $req): array
     {
         $params = [];
@@ -22,19 +38,24 @@ class ReportController
     {
         $apId   = (int) $req->param('id');
         $search = trim($req->query('search', ''));
-        $from   = $req->query('from', '');
-        $to     = $req->query('to', '');
+        $from   = (string) $req->query('from', $req->query('from_datetime', ''));
+        $to     = (string) $req->query('to', $req->query('to_datetime', ''));
+        $timeFrom = (string) $req->query('time_from', '');
+        $timeTo   = (string) $req->query('time_to', '');
         $export = $req->query('export', '');
+
+        $fromDt = $this->normalizeDateTime($from, $timeFrom, '00:00:00');
+        $toDt   = $this->normalizeDateTime($to, $timeTo, '23:59:59');
 
         // ── Branch 1: confirmed_affixeds (pending dispatches not yet affixed) ──
         $w1 = ['ca.allocation_point_id = ?'];
         $p1 = [$apId];
-        if ($from)   { $w1[] = 'ca.date >= ?'; $p1[] = $from . ' 00:00:00'; }
-        if ($to)     { $w1[] = 'ca.date <= ?'; $p1[] = $to   . ' 23:59:59'; }
+        if ($fromDt) { $w1[] = 'ca.date >= ?'; $p1[] = $fromDt; }
+        if ($toDt)   { $w1[] = 'ca.date <= ?'; $p1[] = $toDt; }
         if ($search) {
             $like  = "%{$search}%";
-            $w1[]  = '(d1.device_id ILIKE ? OR ca.boe ILIKE ? OR ca.vehicle_number ILIKE ?)';
-            $p1[]  = $like; $p1[] = $like; $p1[] = $like;
+            $w1[]  = '(d1.device_id ILIKE ? OR ca.boe ILIKE ? OR ca.sad_number ILIKE ? OR ca.vehicle_number ILIKE ?)';
+            $p1[]  = $like; $p1[] = $like; $p1[] = $like; $p1[] = $like;
         }
         $ws1 = 'WHERE ' . implode(' AND ', $w1);
 
@@ -43,12 +64,12 @@ class ReportController
         //   allocation_point_id, affixing_date, affixed_by, status
         $w2 = ['cal.allocation_point_id = ?'];
         $p2 = [$apId];
-        if ($from)   { $w2[] = 'cal.affixing_date >= ?'; $p2[] = $from . ' 00:00:00'; }
-        if ($to)     { $w2[] = 'cal.affixing_date <= ?'; $p2[] = $to   . ' 23:59:59'; }
+        if ($fromDt) { $w2[] = 'cal.affixing_date >= ?'; $p2[] = $fromDt; }
+        if ($toDt)   { $w2[] = 'cal.affixing_date <= ?'; $p2[] = $toDt; }
         if ($search) {
             $like  = "%{$search}%";
-            $w2[]  = '(d2.device_id ILIKE ? OR cal.boe ILIKE ? OR cal.vehicle_number ILIKE ?)';
-            $p2[]  = $like; $p2[] = $like; $p2[] = $like;
+            $w2[]  = '(d2.device_id ILIKE ? OR cal.boe ILIKE ? OR cal.sad_number ILIKE ? OR cal.vehicle_number ILIKE ?)';
+            $p2[]  = $like; $p2[] = $like; $p2[] = $like; $p2[] = $like;
         }
         $ws2 = 'WHERE ' . implode(' AND ', $w2);
 
@@ -58,6 +79,7 @@ class ReportController
                 ca.vehicle_number, ca.truck_number, ca.driver_name,
                 ca.regime, ca.destination, ca.destination_id,
                 ca.route_id, ca.long_route_id, ca.manifest_date,
+                ca.etd, ca.eta,
                 ca.agency, ca.agent_contact, ca.receipt_id,
                 ca.date         AS dispatch_date,
                 ca.date         AS affixing_date,
@@ -81,21 +103,25 @@ class ReportController
              SELECT
                 cal.id, cal.device_id, cal.boe, NULL AS sad_number, NULL AS transaction_type,
                 cal.vehicle_number, NULL AS truck_number, NULL AS driver_name,
-                NULL AS regime, NULL AS destination, NULL AS destination_id,
-                NULL AS route_id, NULL AS long_route_id, NULL AS manifest_date,
-                NULL AS agency, NULL AS agent_contact, NULL AS receipt_id,
+                     cal.regime, cal.destination, cal.destination_id,
+                     cal.route_id, cal.long_route_id, NULL AS manifest_date,
+                     cal.etd, cal.eta,
+                     cal.agency, NULL AS agent_contact, NULL AS receipt_id,
                 cal.affixing_date AS dispatch_date,
                 cal.affixing_date AS affixing_date,
                 cal.status,
                 cal.allocation_point_id,
                 d2.device_id    AS device_identifier,
                 ap2.name        AS allocation_point_name,
-                NULL            AS destination_name,
-                NULL            AS route_name,
-                NULL            AS long_route_name
+                     dest2.name      AS destination_name,
+                     r2.name         AS route_name,
+                     lr2.name        AS long_route_name
              FROM confirmed_affix_logs cal
              LEFT JOIN devices d2            ON cal.device_id          = d2.id
              LEFT JOIN allocation_points ap2 ON cal.allocation_point_id = ap2.id
+                 LEFT JOIN destinations dest2     ON cal.destination_id      = dest2.id
+                 LEFT JOIN routes r2              ON cal.route_id            = r2.id
+                 LEFT JOIN long_routes lr2        ON cal.long_route_id       = lr2.id
              {$ws2}
 
              ORDER BY dispatch_date DESC",

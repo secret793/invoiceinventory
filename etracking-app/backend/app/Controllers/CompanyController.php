@@ -10,7 +10,10 @@ class CompanyController
 {
     public function index(Request $req): void
     {
-        Response::success(Company::all());
+        $page    = max(1, (int) $req->query('page', 1));
+        $perPage = min(1000, max(1, (int) $req->query('per_page', 25)));
+        $result  = Company::paginate($page, $perPage, '', [], '*', '', 'name ASC');
+        Response::paginated($result['data'], $result['total'], $page, $perPage);
     }
 
     public function store(Request $req): void

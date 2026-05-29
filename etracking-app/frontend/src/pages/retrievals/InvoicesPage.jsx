@@ -154,7 +154,12 @@ export default function InvoicesPage() {
         <DataTable columns={columns} data={invoices} loading={loading}
           emptyMessage="No invoices found." />
         <div className="px-4 py-3 border-t border-gray-100">
-          <Pagination meta={meta} onPageChange={changePage} />
+          <Pagination
+            meta={meta}
+            onPageChange={changePage}
+            onPerPageChange={(perPage) => applyFilter({ ...filters, per_page: perPage, page: 1 })}
+            allowAll
+          />
         </div>
       </div>
     </div>

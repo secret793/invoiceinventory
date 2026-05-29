@@ -6,15 +6,17 @@ export function useNotifications() {
   const [meta, setMeta]                   = useState({});
   const [loading, setLoading]             = useState(false);
   const [selected, setSelected]           = useState([]);
+  const [params, setParams]               = useState({ page: 1, per_page: 25 });
 
-  const fetch = useCallback(async (params = {}) => {
+  const fetch = useCallback(async (overrides = {}) => {
+    const query = { ...params, ...overrides };
     setLoading(true);
     try {
-      const res = await notificationService.list(params);
+      const res = await notificationService.list(query);
       setNotifications(res.data || []);
       setMeta(res.meta           || {});
     } catch { /* ignore */ } finally { setLoading(false); }
-  }, []);
+  }, [params]);
 
   useEffect(() => { fetch(); }, []);
 
@@ -33,8 +35,20 @@ export function useNotifications() {
     fetch();
   }, [fetch]);
 
+  const changePage = (page) => {
+    const next = { ...params, page };
+    setParams(next);
+    fetch(next);
+  };
+
+  const changeFilters = (f) => {
+    const next = { ...params, ...f, page: 1 };
+    setParams(next);
+    fetch(next);
+  };
+
   const toggleSelect = (id) =>
     setSelected(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
 
-  return { notifications, meta, loading, selected, setSelected, fetch, markRead, markUnread, bulkRead, toggleSelect };
+  return { notifications, meta, loading, selected, setSelected, fetch, markRead, markUnread, bulkRead, toggleSelect, changePage, changeFilters };
 }

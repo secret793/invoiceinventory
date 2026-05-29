@@ -5,7 +5,7 @@ import PageHeader from '../../components/common/PageHeader';
 import Pagination from '../../components/common/Pagination';
 
 export default function NotificationsPage() {
-  const { notifications, meta, loading, selected, setSelected, fetch, markRead, markUnread, bulkRead, toggleSelect } = useNotifications();
+  const { notifications, meta, loading, selected, setSelected, changePage, changeFilters, markRead, markUnread, bulkRead, toggleSelect } = useNotifications();
   const { notify } = useNotification();
 
   const handleBulkRead = async () => {
@@ -56,7 +56,12 @@ export default function NotificationsPage() {
             ))}
           </div>
         )}
-        <Pagination meta={meta} onPageChange={p => fetch({ page: p })} />
+        <Pagination
+          meta={meta}
+          onPageChange={changePage}
+          onPerPageChange={(perPage) => changeFilters({ per_page: perPage })}
+          allowAll
+        />
       </div>
     </div>
   );

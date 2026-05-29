@@ -28,6 +28,7 @@ export default function AllocationDetailPage() {
   const [meta, setMeta]       = useState({});
   const [loading, setLoading] = useState(true);
   const [page, setPage]       = useState(1);
+  const [perPage, setPerPage] = useState(25);
   const [statusFilter, setStatusFilter] = useState('');
   const [selected, setSelected]         = useState([]);
   const [allAPs, setAllAPs]             = useState([]);
@@ -43,10 +44,10 @@ export default function AllocationDetailPage() {
 
   const loadDevices = useCallback(() => {
     setLoading(true);
-    allocationService.devices(id, { page, per_page: 25, status: statusFilter || undefined }).then(r => {
+    allocationService.devices(id, { page, per_page: perPage, status: statusFilter || undefined }).then(r => {
       setDevices(r.data || []); setMeta(r.meta || {});
     }).catch(() => {}).finally(() => setLoading(false));
-  }, [id, page, statusFilter]);
+  }, [id, page, perPage, statusFilter]);
 
   const loadCounts = useCallback(() => {
     api.get(`/allocation-points/${id}/status-counts`).then(r => setCounts(r.data.data || {})).catch(() => {});
@@ -57,7 +58,7 @@ export default function AllocationDetailPage() {
     allocationService.list().then(setAllAPs).catch(() => {});
   }, [id]);
 
-  useEffect(() => { loadDevices(); }, [id, page, statusFilter]);
+  useEffect(() => { loadDevices(); }, [id, page, perPage, statusFilter]);
 
   const doAction = async (endpoint, body, successMsg) => {
     setActionLoading(true);
@@ -189,7 +190,12 @@ export default function AllocationDetailPage() {
           onSelectAll={checked => setSelected(checked ? devices.map(d => d.id) : [])}
           emptyMessage="No devices at this allocation point." />
         <div className="px-4 py-3 border-t border-gray-100">
-          <Pagination meta={meta} onPageChange={setPage} />
+          <Pagination
+            meta={meta}
+            onPageChange={setPage}
+            onPerPageChange={(nextPerPage) => { setPerPage(nextPerPage); setPage(1); }}
+            allowAll
+          />
         </div>
       </div>
 

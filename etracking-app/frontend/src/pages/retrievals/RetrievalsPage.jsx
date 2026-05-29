@@ -535,7 +535,12 @@ export default function RetrievalsPage() {
         <DataTable columns={columns} data={retrievals} loading={loading}
           emptyMessage="No retrieval records found." />
         <div className="px-4 py-3 border-t border-gray-100">
-          <Pagination meta={meta} onPageChange={changePage} />
+          <Pagination
+            meta={meta}
+            onPageChange={changePage}
+            onPerPageChange={(perPage) => changeFilters({ per_page: perPage })}
+            allowAll
+          />
         </div>
       </div>
 

@@ -83,17 +83,17 @@ export default function MonitoringPage() {
   };
 
   const columns = [
-    { header: 'Dispatch Date',  key: 'dispatch_date',   render: v => v ? new Date(v).toLocaleDateString() : '—' },
+    { header: 'Dispatch Date',  key: 'dispatch_date',   render: (v, r) => (v || r.date) ? new Date(v || r.date).toLocaleDateString() : '—' },
     { header: 'Device ID',      key: 'device_identifier', render: v => <span className="font-mono font-semibold" style={{ color: '#1E2D7A' }}>{v || '—'}</span> },
-    { header: 'BOE',            key: 'boe',             render: v => <span className="font-mono text-xs">{v || '—'}</span> },
+    { header: 'BOE / SAD',      key: 'boe',             render: (_, r) => <span className="font-mono text-xs">{r.sad_number || r.boe || '—'}</span> },
     { header: 'Vehicle',        key: 'vehicle_number',  render: v => <span className="text-xs">{v || '—'}</span> },
     { header: 'Regime',         key: 'regime',          render: v => <span className="text-xs">{v || '—'}</span> },
-    { header: 'Route',          key: 'route',           render: v => <span className="text-xs">{v || '—'}</span> },
-    { header: 'Long Route',     key: 'long_route',      render: v => <span className="text-xs">{v || '—'}</span> },
+    { header: 'Route',          key: 'route_name',      render: (v, r) => <span className="text-xs">{v || r.route_id || '—'}</span> },
+    { header: 'Long Route',     key: 'long_route_name', render: (v, r) => <span className="text-xs">{v || r.long_route_id || '—'}</span> },
     { header: 'Manifest Date',  key: 'manifest_date',
       render: v => v ? <span className="text-xs">{new Date(v).toLocaleDateString()}</span> : <span className="badge-yellow text-xs">Pending</span>
     },
-    { header: 'Destination',    key: 'destination_name', render: v => <span className="text-xs">{v || '—'}</span> },
+    { header: 'Destination',    key: 'destination_name', render: (v, r) => <span className="text-xs">{v || r.destination || '—'}</span> },
     { header: 'Agency',         key: 'agency',          render: v => <span className="text-xs">{v || '—'}</span> },
     { header: 'Agent Contact',  key: 'agent_contact',   render: v => <span className="text-xs">{v || '—'}</span> },
     { header: 'Truck No.',      key: 'truck_number',    render: v => <span className="text-xs">{v || '—'}</span> },
@@ -178,10 +178,15 @@ export default function MonitoringPage() {
         <DataTable columns={columns} data={records} loading={loading}
           emptyMessage="No monitoring records found." />
         <div className="px-4 py-3 border-t border-gray-100">
-          <Pagination meta={meta} onPageChange={p => {
-            const np = { ...paramsRef.current, page: p };
-            setParams(np); load(np);
-          }} />
+          <Pagination
+            meta={meta}
+            onPageChange={p => {
+              const np = { ...paramsRef.current, page: p };
+              setParams(np); load(np);
+            }}
+            onPerPageChange={(perPage) => applyFilter({ per_page: perPage })}
+            allowAll
+          />
         </div>
       </div>
 

@@ -181,7 +181,12 @@ export default function TransfersPage() {
           onSelectAll={checked => setSelected(checked ? transfers.map(t => t.id) : [])}
           emptyMessage="No transfers found. Create transfers from the Devices / Trackers section." />
         <div className="px-4 py-3 border-t border-gray-100">
-          <Pagination meta={meta} onPageChange={p => { const np = { ...params, page: p }; setParams(np); load(np); }} />
+          <Pagination
+            meta={meta}
+            onPageChange={p => { const np = { ...params, page: p }; setParams(np); load(np); }}
+            onPerPageChange={(perPage) => { const np = { ...params, per_page: perPage, page: 1 }; setParams(np); load(np); }}
+            allowAll
+          />
         </div>
       </div>
 

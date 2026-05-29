@@ -112,12 +112,12 @@ export default function ConfirmedAffixedPage() {
   };
 
   const columns = [
-    { header: 'Device ID',     key: 'device_id',         render: v => <span className="font-mono font-semibold">{v || '—'}</span> },
-    { header: 'BOE / SAD',     key: 'boe',               render: v => <span className="font-mono">{v || '—'}</span> },
+    { header: 'Device ID',     key: 'device_identifier', render: (_, r) => <span className="font-mono font-semibold">{r.device_identifier || r.device_id || '—'}</span> },
+    { header: 'BOE / SAD',     key: 'sad_number',        render: (_, r) => <span className="font-mono">{r.sad_number || r.boe || '—'}</span> },
     { header: 'Vehicle',       key: 'vehicle_number',    render: v => v || '—' },
     { header: 'Regime',        key: 'regime',            render: v => v || '—' },
-    { header: 'Route',         key: 'route',             render: v => v || '—' },
-    { header: 'Long Route',    key: 'long_route',        render: v => v || '—' },
+    { header: 'Route',         key: 'route_name',        render: v => v || '—' },
+    { header: 'Long Route',    key: 'long_route_name',   render: v => v || '—' },
     { header: 'Destination',   key: 'destination',       render: v => v || '—' },
     { header: 'Manifest Date', key: 'manifest_date',
       render: v => v ? new Date(v).toLocaleDateString() : <span className="badge-yellow">Pending</span>
@@ -181,7 +181,12 @@ export default function ConfirmedAffixedPage() {
           onSelectAll={checked => setSelected(checked ? records.map(r => r.id) : [])}
           emptyMessage="No confirmed dispatch records found." />
         <div className="px-4 py-3 border-t border-gray-100">
-          <Pagination meta={meta} onPageChange={p => { const np = { ...params, page: p }; setParams(np); load(np); }} />
+          <Pagination
+            meta={meta}
+            onPageChange={p => { const np = { ...params, page: p }; setParams(np); load(np); }}
+            onPerPageChange={(perPage) => { const np = { ...params, per_page: perPage, page: 1 }; setParams(np); load(np); }}
+            allowAll
+          />
         </div>
       </div>
 
@@ -309,11 +314,11 @@ export default function ConfirmedAffixedPage() {
                     <tr key={r.id ?? i} className="hover:bg-gray-50">
                       <td className="px-2 py-1.5 whitespace-nowrap">{r.date ? new Date(r.date).toLocaleDateString() : '—'}</td>
                       <td className="px-2 py-1.5 font-mono font-semibold" style={{ color: '#1E2D7A' }}>{r.device_identifier || r.device_id || '—'}</td>
-                      <td className="px-2 py-1.5 font-mono">{r.boe || '—'}</td>
+                      <td className="px-2 py-1.5 font-mono">{r.sad_number || r.boe || '—'}</td>
                       <td className="px-2 py-1.5">{r.vehicle_number || '—'}</td>
                       <td className="px-2 py-1.5">{r.regime || '—'}</td>
-                      <td className="px-2 py-1.5">{r.route || '—'}</td>
-                      <td className="px-2 py-1.5">{r.long_route || '—'}</td>
+                      <td className="px-2 py-1.5">{r.route_name || '—'}</td>
+                      <td className="px-2 py-1.5">{r.long_route_name || '—'}</td>
                       <td className="px-2 py-1.5">{r.destination || r.destination_name || '—'}</td>
                       <td className="px-2 py-1.5 whitespace-nowrap">{r.manifest_date ? new Date(r.manifest_date).toLocaleDateString() : <span className="text-amber-500">Pending</span>}</td>
                       <td className="px-2 py-1.5">{r.agency || '—'}</td>

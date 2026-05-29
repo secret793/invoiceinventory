@@ -6,6 +6,8 @@ import { allocationService } from '../../services/allocationService';
 import { useNotification } from '../../contexts/NotificationContext';
 import PageHeader from '../../components/common/PageHeader';
 import DataTable from '../../components/common/DataTable';
+import Pagination from '../../components/common/Pagination';
+import SearchBar from '../../components/common/SearchBar';
 import StatusBadge from '../../components/common/StatusBadge';
 import Modal from '../../components/common/Modal';
 
@@ -61,8 +63,20 @@ export default function DataEntryDetailPage() {
 
   const [ap, setAp]           = useState(null);
   const [devices, setDevices] = useState([]);
+  const [deviceMeta, setDeviceMeta] = useState({});
+  const [devicePage, setDevicePage] = useState(1);
+  const [devicePerPage, setDevicePerPage] = useState(25);
   const [receipts, setReceipts]       = useState([]);   // AP-scoped, all (for "View Receipts" modal)
-  const [allReceipts, setAllReceipts] = useState([]);   // global, used > 0 (for dispatch dropdown)
+  const [receiptMeta, setReceiptMeta] = useState({});
+  const [receiptPage, setReceiptPage] = useState(1);
+  const [receiptPerPage, setReceiptPerPage] = useState(25);
+  const [dispatchReceipts, setDispatchReceipts] = useState([]);   // global, used > 0 (for dispatch picker)
+  const [dispatchReceiptMeta, setDispatchReceiptMeta] = useState({});
+  const [dispatchReceiptPage, setDispatchReceiptPage] = useState(1);
+  const [dispatchReceiptPerPage, setDispatchReceiptPerPage] = useState(10);
+  const [dispatchReceiptSearch, setDispatchReceiptSearch] = useState('');
+  const [dispatchReceiptLoading, setDispatchReceiptLoading] = useState(false);
+  const [selectedDispatchReceipt, setSelectedDispatchReceipt] = useState(null);
   const [routes, setRoutes]   = useState([]);
   const [longRoutes, setLongRoutes] = useState([]);
   const [regimes, setRegimes] = useState([]);
@@ -85,7 +99,7 @@ export default function DataEntryDetailPage() {
   const [showDispatchReport, setShowDispatchReport]         = useState(false);
   const [dispatchReportList, setDispatchReportList]         = useState([]);
   const [dispatchReportLoading, setDispatchReportLoading]   = useState(false);
-  const [dispatchReportFilters, setDispatchReportFilters]   = useState({ search: '', from: '', to: '' });
+  const [dispatchReportFilters, setDispatchReportFilters]   = useState({ search: '', from: '', to: '', time_from: '', time_to: '' });
 
   // ─── Load exchange rate from DB ───────────────────────────────────────────
   const loadExchangeRate = async () => {
@@ -95,13 +109,22 @@ export default function DataEntryDetailPage() {
     } catch { /* fallback stays 74.07 */ }
   };
 
-  // ─── Load globally available receipts for dispatch dropdown ───────────────
-  // No AP filter — shows ALL receipts with used > 0 across the system
-  const loadAvailableReceipts = async () => {
+  // ─── Load receipts available for dispatch ────────────────────────────────
+  const loadDispatchReceipts = async (overrides = {}) => {
     try {
-      const { data } = await api.get('/receipts', { params: { available: 1, per_page: 500 } });
-      setAllReceipts(data?.data || []);
-    } catch { /* silent — dispatch dropdown stays empty */ }
+      setDispatchReceiptLoading(true);
+      const params = {
+        available: 1,
+        page: dispatchReceiptPage,
+        per_page: dispatchReceiptPerPage,
+        search: dispatchReceiptSearch || undefined,
+        ...overrides,
+      };
+      const { data } = await api.get('/receipts', { params });
+      setDispatchReceipts(data?.data || []);
+      setDispatchReceiptMeta(data?.meta || {});
+    } catch { /* silent — dispatch picker stays empty */ }
+    finally { setDispatchReceiptLoading(false); }
   };
 
   // ─── Pricing auto-calculation ─────────────────────────────────────────────
@@ -127,6 +150,7 @@ export default function DataEntryDetailPage() {
       ...f,
       route_id:      routeId,
       long_route_id: '',            // mutually exclusive
+      destination_id: r.destination_id ? String(r.destination_id) : '',
       billing_unit:  'Short Route',
       ...pricing,
     }));
@@ -140,6 +164,7 @@ export default function DataEntryDetailPage() {
       ...f,
       long_route_id: routeId,
       route_id:      '',            // mutually exclusive
+      destination_id: r.destination_id ? String(r.destination_id) : '',
       billing_unit:  'Long Route',
       ...pricing,
     }));
@@ -159,16 +184,18 @@ export default function DataEntryDetailPage() {
     setLoading(true);
     Promise.all([
       allocationService.get(id).catch(() => null),
-      api.get('/devices', { params: { allocation_point_id: id, per_page: 200, status: statusFilter || undefined } }).catch(() => ({ data: { data: [] } })),
-      api.get('/receipts', { params: { per_page: 500 } }).catch(() => ({ data: { data: [] } })),
-      api.get('/routes').catch(() => ({ data: { data: [] } })),
-      api.get('/long-routes').catch(() => ({ data: { data: [] } })),
+      api.get('/devices', { params: { allocation_point_id: id, page: devicePage, per_page: devicePerPage, status: statusFilter || undefined } }).catch(() => ({ data: { data: [] } })),
+      api.get('/receipts', { params: { allocation_point_id: id, page: receiptPage, per_page: receiptPerPage } }).catch(() => ({ data: { data: [] } })),
+      api.get('/routes', { params: { allocation_point_id: id, per_page: 1000 } }).catch(() => ({ data: { data: [] } })),
+      api.get('/long-routes', { params: { allocation_point_id: id, per_page: 1000 } }).catch(() => ({ data: { data: [] } })),
       api.get('/regimes').catch(() => ({ data: { data: [] } })),
       api.get('/destinations').catch(() => ({ data: { data: [] } })),
     ]).then(([apData, devsRes, receiptsRes, routesRes, longRes, regimesRes, destRes]) => {
       setAp(apData);
       setDevices(devsRes.data?.data || []);
+      setDeviceMeta(devsRes.data?.meta || {});
       setReceipts(receiptsRes.data?.data || []);
+      setReceiptMeta(receiptsRes.data?.meta || {});
       setRoutes(routesRes.data?.data || []);
       setLongRoutes(longRes.data?.data || []);
       setRegimes(regimesRes.data?.data || []);
@@ -178,9 +205,16 @@ export default function DataEntryDetailPage() {
 
   useEffect(() => {
     loadExchangeRate();
-    loadAvailableReceipts();
+  }, [id]);
+
+  useEffect(() => {
     load();
-  }, [id, statusFilter]);
+  }, [id, statusFilter, devicePage, devicePerPage, receiptPage, receiptPerPage]);
+
+  useEffect(() => {
+    if (!showDispatch) return;
+    loadDispatchReceipts();
+  }, [showDispatch, dispatchReceiptPage, dispatchReceiptPerPage, dispatchReceiptSearch]);
 
   // ─── Receipt create ───────────────────────────────────────────────────────
   const handleNewReceipt = async (e) => {
@@ -210,15 +244,17 @@ export default function DataEntryDetailPage() {
 
   // ─── Receipt auto-fill on dispatch ───────────────────────────────────────
   const handleReceiptSelect = (receiptId) => {
-    const r = allReceipts.find(rc => String(rc.id) === String(receiptId));
+    const r = dispatchReceipts.find(rc => String(rc.id) === String(receiptId)) || selectedDispatchReceipt;
     if (!r) { setDispatchForm(f => ({ ...f, receipt_id: receiptId })); return; }
     const avail = parseInt(r.used) ?? 0;
     if (avail <= 0) {
       notify.error(`Receipt ${r.receipt_number} is fully used (0/${r.moving_trucks} remaining).`);
       setDispatchForm(f => ({ ...f, receipt_id: '' }));
+      setSelectedDispatchReceipt(null);
       return;
     }
     notify.success(`Receipt selected — ${avail}/${r.moving_trucks} truck(s) available.`);
+    setSelectedDispatchReceipt(r);
     setDispatchForm(f => ({
       ...f,
       receipt_id:       receiptId,
@@ -235,6 +271,7 @@ export default function DataEntryDetailPage() {
   const handleDispatch = async (e) => {
     e.preventDefault();
     if (!selectedDevices.length) { notify.error('Select at least one device to dispatch'); return; }
+    if (!dispatchForm.receipt_id) { notify.error('Select a receipt to dispatch from'); return; }
 
     const receivedIds = selectedDevices.filter(sid => {
       const d = devices.find(dev => dev.id === sid);
@@ -247,7 +284,7 @@ export default function DataEntryDetailPage() {
 
     setDispatchSaving(true);
     try {
-      const selectedReceipt = allReceipts.find(r => String(r.id) === String(dispatchForm.receipt_id));
+      const selectedReceipt = selectedDispatchReceipt;
       const selectedRegime  = regimes.find(r => String(r.id) === String(dispatchForm.regime_id));
       const selectedDest    = destinations.find(d => String(d.id) === String(dispatchForm.destination_id));
 
@@ -273,8 +310,9 @@ export default function DataEntryDetailPage() {
       setShowDispatch(false);
       setSelectedDevices([]);
       setDispatchForm(BLANK_DISPATCH);
+      setSelectedDispatchReceipt(null);
       load();                    // reload devices list (dispatched devices disappear)
-      loadAvailableReceipts();   // reload receipt counters (used decremented)
+      loadDispatchReceipts();   // reload receipt counters (used decremented)
     } catch (err) { notify.error(err.response?.data?.message || err.message); }
     finally { setDispatchSaving(false); }
   };
@@ -294,12 +332,15 @@ export default function DataEntryDetailPage() {
     if (dispatchReportFilters.search) p.set('search', dispatchReportFilters.search);
     if (dispatchReportFilters.from)   p.set('from',   dispatchReportFilters.from);
     if (dispatchReportFilters.to)     p.set('to',     dispatchReportFilters.to);
+    if (dispatchReportFilters.time_from) p.set('time_from', dispatchReportFilters.time_from);
+    if (dispatchReportFilters.time_to)   p.set('time_to',   dispatchReportFilters.time_to);
     return `/api/reports/dispatch/${id}?${p.toString()}&export=1`;
   };
 
   const filteredDevices = statusFilter ? devices.filter(d => d.status === statusFilter) : devices;
   const counts = DEVICE_STATUSES.reduce((acc, s) => { acc[s] = devices.filter(d => d.status === s).length; return acc; }, {});
   const receivedCount = counts['RECEIVED'] || 0;
+  const receiptSelectedDestination = destinations.find(d => String(d.id) === String(receiptForm.destination_id));
 
   const deviceColumns = [
     { header: 'Device ID', key: 'device_id', render: v => <span className="font-mono font-semibold" style={{ color: '#1E2D7A' }}>{v}</span> },
@@ -309,7 +350,8 @@ export default function DataEntryDetailPage() {
     { header: 'Serial',    key: 'serial_number',  render: v => v || '—' },
   ];
 
-  const selectedReceipt = allReceipts.find(r => String(r.id) === String(dispatchForm.receipt_id));
+  const selectedReceipt = selectedDispatchReceipt;
+  const dispatchSelectedDestination = destinations.find(d => String(d.id) === String(dispatchForm.destination_id));
 
   // ─── Pricing display helpers ───────────────────────────────────────────────
   const hasRoutePricing = !!(receiptForm.route_id || receiptForm.long_route_id);
@@ -375,13 +417,21 @@ export default function DataEntryDetailPage() {
       <div className="card p-0 overflow-hidden mb-6">
         <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
           <h3 className="font-semibold text-gray-900">Devices at this Allocation Point</h3>
-          <span className="text-xs text-gray-500">{filteredDevices.length} device(s)</span>
+          <span className="text-xs text-gray-500">{deviceMeta.total ?? filteredDevices.length} device(s)</span>
         </div>
         <DataTable columns={deviceColumns} data={filteredDevices} loading={loading}
           selectable selected={selectedDevices}
           onSelect={(did, checked) => setSelectedDevices(prev => checked ? [...prev, did] : prev.filter(x => x !== did))}
           onSelectAll={checked => setSelectedDevices(checked ? filteredDevices.filter(d => d.status !== 'RECEIVED').map(d => d.id) : [])}
           emptyMessage="No devices at this allocation point." />
+        <div className="px-4 py-3 border-t border-gray-100">
+          <Pagination
+            meta={deviceMeta}
+            onPageChange={setDevicePage}
+            onPerPageChange={(perPage) => { setDevicePerPage(perPage); setDevicePage(1); }}
+            allowAll
+          />
+        </div>
       </div>
 
       {/* ═══ NEW RECEIPT MODAL ═══════════════════════════════════════════════ */}
@@ -450,7 +500,7 @@ export default function DataEntryDetailPage() {
                   {receiptForm.route_id && <span className="ml-2 text-xs font-normal" style={{ color: '#085E37' }}>✓ selected</span>}
                 </label>
                 <select className="input" value={receiptForm.route_id}
-                  onChange={e => e.target.value ? applyRoute(e.target.value) : setReceiptForm(f => ({ ...f, route_id: '', billing_unit: '', base_unit_charge_usd: '', exchange_rate_used: '', unit_charge_gmd: '', total_charge_gmd: '' }))}>
+                  onChange={e => e.target.value ? applyRoute(e.target.value) : setReceiptForm(f => ({ ...f, route_id: '', destination_id: '', billing_unit: '', base_unit_charge_usd: '', exchange_rate_used: '', unit_charge_gmd: '', total_charge_gmd: '' }))}>
                   <option value="">Select short route…</option>
                   {routes.map(r => (
                     <option key={r.id} value={r.id}>
@@ -465,7 +515,7 @@ export default function DataEntryDetailPage() {
                   {receiptForm.long_route_id && <span className="ml-2 text-xs font-normal" style={{ color: '#085E37' }}>✓ selected</span>}
                 </label>
                 <select className="input" value={receiptForm.long_route_id}
-                  onChange={e => e.target.value ? applyLongRoute(e.target.value) : setReceiptForm(f => ({ ...f, long_route_id: '', billing_unit: '', base_unit_charge_usd: '', exchange_rate_used: '', unit_charge_gmd: '', total_charge_gmd: '' }))}>
+                  onChange={e => e.target.value ? applyLongRoute(e.target.value) : setReceiptForm(f => ({ ...f, long_route_id: '', destination_id: '', billing_unit: '', base_unit_charge_usd: '', exchange_rate_used: '', unit_charge_gmd: '', total_charge_gmd: '' }))}>
                   <option value="">Select long route…</option>
                   {longRoutes.map(r => (
                     <option key={r.id} value={r.id}>
@@ -503,12 +553,12 @@ export default function DataEntryDetailPage() {
                 <input disabled className="input bg-gray-50 text-gray-600" value={ap?.name || id} readOnly />
               </div>
               <div>
-                <label className="label">Destination</label>
-                <select className="input" value={receiptForm.destination_id}
-                  onChange={e => setReceiptForm(f => ({ ...f, destination_id: e.target.value }))}>
-                  <option value="">Select destination…</option>
+                <label className="label">Destination (Auto from route)</label>
+                <select className="input bg-gray-50 text-gray-600" value={receiptForm.destination_id} disabled>
+                  <option value="">Select route first…</option>
                   {destinations.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>
+                {receiptSelectedDestination && <p className="text-xs text-gray-500 mt-1">Selected: {receiptSelectedDestination.name}</p>}
               </div>
             </div>
           </div>
@@ -640,7 +690,7 @@ export default function DataEntryDetailPage() {
 
       {/* ═══ RECEIPTS LIST MODAL ═════════════════════════════════════════════ */}
       <Modal isOpen={showReceipts} onClose={() => setShowReceipts(false)}
-        title={`All Receipts (${receipts.length})`} size="full">
+        title={`All Receipts (${receiptMeta.total ?? receipts.length})`} size="full">
         <div className="overflow-x-auto">
           <table className="min-w-full text-xs">
             <thead className="bg-gray-50">
@@ -681,6 +731,14 @@ export default function DataEntryDetailPage() {
             </tbody>
           </table>
         </div>
+        <div className="px-4 py-3 border-t border-gray-100">
+          <Pagination
+            meta={receiptMeta}
+            onPageChange={setReceiptPage}
+            onPerPageChange={(perPage) => { setReceiptPerPage(perPage); setReceiptPage(1); }}
+            allowAll
+          />
+        </div>
       </Modal>
 
       {/* ═══ DISPATCH MODAL ══════════════════════════════════════════════════ */}
@@ -711,24 +769,68 @@ export default function DataEntryDetailPage() {
             <h4 className="text-xs font-bold uppercase tracking-widest mb-2 pb-1 border-b" style={{ color: '#1E2D7A' }}>
               Receipt
             </h4>
-            <div>
-              <label className="label">Select Receipt <span className="text-red-500">*</span></label>
-              <select required className="input" value={dispatchForm.receipt_id}
-                onChange={e => handleReceiptSelect(e.target.value)}>
-                <option value="">Select receipt… ({allReceipts.length} available globally)</option>
-                {allReceipts.map(r => {
-                  const used  = parseInt(r.used) ?? 0;
-                  const total = parseInt(r.moving_trucks) ?? 0;
-                  const color = used === 0 ? 'red' : used <= Math.ceil(total * 0.25) ? 'darkorange' : 'green';
-                  return (
-                    <option key={r.id} value={r.id} style={{ color }}>
-                      [{r.used}/{r.moving_trucks}] {r.receipt_number} — {r.transaction_type} — {r.sad_number || 'No SAD'} — {r.station_name || 'Unknown AP'}
-                    </option>
-                  );
-                })}
-              </select>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <label className="label mb-0">Choose Receipt <span className="text-red-500">*</span></label>
+                <span className="text-xs text-gray-500">Showing {dispatchReceiptMeta.total ?? dispatchReceipts.length} available receipts</span>
+              </div>
+              <SearchBar
+                onSearch={(value) => { setDispatchReceiptSearch(value); setDispatchReceiptPage(1); }}
+                placeholder="Type Receipt No, Receipt ID, SAD, or Agent…"
+                className="w-full"
+              />
+              <p className="text-xs text-gray-500">
+                Start typing receipt number or numeric receipt ID to quickly find the correct receipt.
+              </p>
+              <div className="overflow-x-auto rounded-lg border border-gray-100">
+                <table className="min-w-full text-xs">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      {['Receipt No.', 'Type', 'SAD/Ref', 'Available', 'Route', 'Agent', 'Destination', 'Action'].map(h => (
+                        <th key={h} className="px-3 py-2 text-left font-semibold text-gray-600 whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-100">
+                    {dispatchReceiptLoading ? (
+                      <tr><td colSpan={8} className="text-center py-8 text-gray-400">Loading receipts…</td></tr>
+                    ) : dispatchReceipts.length === 0 ? (
+                      <tr><td colSpan={8} className="text-center py-8 text-gray-400">No available receipts found.</td></tr>
+                    ) : dispatchReceipts.map(r => {
+                      const used  = parseInt(r.used) ?? 0;
+                      const total = parseInt(r.moving_trucks) ?? 0;
+                      const color = used === 0 ? 'red' : used <= Math.ceil(total * 0.25) ? 'darkorange' : 'green';
+                      const isSelected = String(dispatchForm.receipt_id) === String(r.id);
+                      return (
+                        <tr key={r.id} className={isSelected ? 'bg-green-50' : 'hover:bg-gray-50'}>
+                          <td className="px-3 py-2 font-mono font-semibold" style={{ color: '#1E2D7A' }}>{r.receipt_number}</td>
+                          <td className="px-3 py-2">{r.transaction_type || '—'}</td>
+                          <td className="px-3 py-2 font-mono">{r.sad_number || 'No SAD'}</td>
+                          <td className="px-3 py-2 font-semibold" style={{ color }}>
+                            {r.used}/{r.moving_trucks}
+                          </td>
+                          <td className="px-3 py-2">{r.route_name || r.long_route_name || '—'}</td>
+                          <td className="px-3 py-2">{r.agent_name || '—'}</td>
+                          <td className="px-3 py-2">{r.destination_name || '—'}</td>
+                          <td className="px-3 py-2">
+                            <button type="button" onClick={() => handleReceiptSelect(r.id)} className="btn-primary btn-sm">
+                              {isSelected ? 'Selected' : 'Select'}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <Pagination
+                meta={dispatchReceiptMeta}
+                onPageChange={setDispatchReceiptPage}
+                onPerPageChange={(perPage) => { setDispatchReceiptPerPage(perPage); setDispatchReceiptPage(1); }}
+                allowAll
+              />
               {selectedReceipt && (
-                <div className="mt-2 text-xs rounded p-2 grid grid-cols-3 gap-2" style={{ background: '#f0fdf4', color: '#166534' }}>
+                <div className="text-xs rounded p-2 grid grid-cols-3 gap-2" style={{ background: '#f0fdf4', color: '#166534' }}>
                   <span>Type: <strong>{selectedReceipt.transaction_type}</strong></span>
                   <span>SAD/Ref: <strong>{selectedReceipt.sad_number || '—'}</strong></span>
                   <span>Available: <strong>{selectedReceipt.used ?? '?'}/{selectedReceipt.moving_trucks ?? '?'}</strong></span>
@@ -782,19 +884,28 @@ export default function DataEntryDetailPage() {
                 </select>
               </div>
               <div>
-                <label className="label">Destination <span className="text-red-500">*</span></label>
-                <select required className="input" value={dispatchForm.destination_id}
-                  onChange={e => setDispatchForm(f => ({ ...f, destination_id: e.target.value }))}>
-                  <option value="">Select destination…</option>
+                <label className="label">Destination (Auto from route/receipt) <span className="text-red-500">*</span></label>
+                <select required className="input bg-gray-50 text-gray-600" value={dispatchForm.destination_id} disabled>
+                  <option value="">Select route or receipt first…</option>
                   {destinations.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>
+                {dispatchSelectedDestination && <p className="text-xs text-gray-500 mt-1">Selected: {dispatchSelectedDestination.name}</p>}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4 mt-3">
               <div>
                 <label className="label">Route</label>
                 <select className="input" value={dispatchForm.route_id}
-                  onChange={e => setDispatchForm(f => ({ ...f, route_id: e.target.value }))}>
+                  onChange={e => {
+                    const routeId = e.target.value;
+                    const route = routes.find(r => String(r.id) === String(routeId));
+                    setDispatchForm(f => ({
+                      ...f,
+                      route_id: routeId,
+                      long_route_id: routeId ? '' : f.long_route_id,
+                      destination_id: route?.destination_id ? String(route.destination_id) : (routeId ? '' : f.destination_id),
+                    }));
+                  }}>
                   <option value="">Select route…</option>
                   {routes.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                 </select>
@@ -802,7 +913,16 @@ export default function DataEntryDetailPage() {
               <div>
                 <label className="label">Long Route</label>
                 <select className="input" value={dispatchForm.long_route_id}
-                  onChange={e => setDispatchForm(f => ({ ...f, long_route_id: e.target.value }))}>
+                  onChange={e => {
+                    const routeId = e.target.value;
+                    const route = longRoutes.find(r => String(r.id) === String(routeId));
+                    setDispatchForm(f => ({
+                      ...f,
+                      long_route_id: routeId,
+                      route_id: routeId ? '' : f.route_id,
+                      destination_id: route?.destination_id ? String(route.destination_id) : (routeId ? '' : f.destination_id),
+                    }));
+                  }}>
                   <option value="">Select long route…</option>
                   {longRoutes.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                 </select>
@@ -920,7 +1040,7 @@ export default function DataEntryDetailPage() {
           <div className="flex flex-wrap gap-3 items-end p-3 bg-gray-50 rounded-lg">
             <div>
               <label className="label text-xs">Search</label>
-              <input type="text" className="input input-sm w-44" placeholder="Device ID / BOE / Vehicle…"
+              <input type="text" className="input input-sm w-44" placeholder="Device ID / SAD / Vehicle…"
                 value={dispatchReportFilters.search}
                 onChange={e => setDispatchReportFilters(f => ({ ...f, search: e.target.value }))} />
             </div>
@@ -930,12 +1050,22 @@ export default function DataEntryDetailPage() {
                 onChange={e => setDispatchReportFilters(f => ({ ...f, from: e.target.value }))} />
             </div>
             <div>
+              <label className="label text-xs">From Time</label>
+              <input type="time" className="input input-sm" value={dispatchReportFilters.time_from}
+                onChange={e => setDispatchReportFilters(f => ({ ...f, time_from: e.target.value }))} />
+            </div>
+            <div>
               <label className="label text-xs">To Date</label>
               <input type="date" className="input input-sm" value={dispatchReportFilters.to}
                 onChange={e => setDispatchReportFilters(f => ({ ...f, to: e.target.value }))} />
             </div>
+            <div>
+              <label className="label text-xs">To Time</label>
+              <input type="time" className="input input-sm" value={dispatchReportFilters.time_to}
+                onChange={e => setDispatchReportFilters(f => ({ ...f, time_to: e.target.value }))} />
+            </div>
             <button onClick={() => runDispatchReport(dispatchReportFilters)} className="btn-primary btn-sm">Apply</button>
-            <button onClick={() => { const r = { search: '', from: '', to: '' }; setDispatchReportFilters(r); runDispatchReport(r); }}
+            <button onClick={() => { const r = { search: '', from: '', to: '', time_from: '', time_to: '' }; setDispatchReportFilters(r); runDispatchReport(r); }}
               className="btn-secondary btn-sm">Reset</button>
           </div>
 
@@ -949,7 +1079,7 @@ export default function DataEntryDetailPage() {
               <table className="min-w-full text-xs">
                 <thead className="bg-gray-50 sticky top-0">
                   <tr>
-                    {['Date','Device ID','BOE','Vehicle','Regime','Route','Destination',
+                    {['Dispatch Date','Device ID','SAD','Vehicle','Regime','Short Route','Long Route','Destination',
                       'ETD','ETA','Manifest Date','Agency','Driver','Status'].map(h => (
                       <th key={h} className="px-2 py-2 text-left font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
@@ -958,13 +1088,14 @@ export default function DataEntryDetailPage() {
                 <tbody className="divide-y divide-gray-100">
                   {dispatchReportList.map((r, i) => (
                     <tr key={r.id ?? i} className="hover:bg-gray-50">
-                      <td className="px-2 py-1.5 whitespace-nowrap">{r.date ? new Date(r.date).toLocaleDateString() : '—'}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">{r.dispatch_date ? new Date(r.dispatch_date).toLocaleDateString() : (r.date ? new Date(r.date).toLocaleDateString() : '—')}</td>
                       <td className="px-2 py-1.5 font-mono font-semibold" style={{ color: '#1E2D7A' }}>{r.device_identifier || r.device_id || '—'}</td>
-                      <td className="px-2 py-1.5 font-mono">{r.boe || '—'}</td>
+                      <td className="px-2 py-1.5 font-mono">{r.sad_number || r.boe || '—'}</td>
                       <td className="px-2 py-1.5">{r.vehicle_number || '—'}</td>
                       <td className="px-2 py-1.5">{r.regime || '—'}</td>
-                      <td className="px-2 py-1.5">{r.route || r.route_name || '—'}</td>
-                      <td className="px-2 py-1.5">{r.destination || r.destination_name || '—'}</td>
+                      <td className="px-2 py-1.5">{r.route_name || '—'}</td>
+                      <td className="px-2 py-1.5">{r.long_route_name || '—'}</td>
+                      <td className="px-2 py-1.5">{r.destination_name || r.destination || '—'}</td>
                       <td className="px-2 py-1.5 whitespace-nowrap">{r.etd ? new Date(r.etd).toLocaleString() : '—'}</td>
                       <td className="px-2 py-1.5 whitespace-nowrap">{r.eta ? new Date(r.eta).toLocaleString() : '—'}</td>
                       <td className="px-2 py-1.5 whitespace-nowrap">{r.manifest_date ? new Date(r.manifest_date).toLocaleDateString() : <span className="text-amber-500">Pending</span>}</td>

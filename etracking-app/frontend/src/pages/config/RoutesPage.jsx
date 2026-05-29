@@ -1,49 +1,79 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { configService } from '../../services/configService';
+import { allocationService } from '../../services/allocationService';
 import { useNotification } from '../../contexts/NotificationContext';
 import PageHeader from '../../components/common/PageHeader';
 import DataTable from '../../components/common/DataTable';
+import Pagination from '../../components/common/Pagination';
 import Modal from '../../components/common/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
-import { Input } from '../../components/common/FormField';
+import { Input, Select } from '../../components/common/FormField';
 
 export default function RoutesPage() {
   const { notify } = useNotification();
   const [rows, setRows]       = useState([]);
+  const [meta, setMeta]       = useState({});
   const [loading, setLoading] = useState(false);
+  const [params, setParams]   = useState({ page: 1, per_page: 25, include_inactive: 1 });
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing]   = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [saving, setSaving]     = useState(false);
-  const [form, setForm] = useState({ name: '', allowed_days: 1, base_usd_amount: 0 });
+  const [allocationPoints, setAllocationPoints] = useState([]);
+  const [destinations, setDestinations] = useState([]);
+  const [form, setForm] = useState({ name: '', allocation_point_id: '', destination_id: '', is_active: 1, allowed_days: 1, base_usd_amount: 0 });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (p = params) => {
     setLoading(true);
-    try { setRows(await configService.routes.list() || []); } catch { }
+    try { const res = await configService.routes.list(p); setRows(res.data || []); setMeta(res.meta || {}); } catch { }
     finally { setLoading(false); }
+  }, [params]);
+
+  useEffect(() => {
+    load();
+    allocationService.list().then(setAllocationPoints).catch(() => {});
+    configService.destinations.list({ page: 1, per_page: 1000 }).then(res => setDestinations(res.data || [])).catch(() => {});
   }, []);
 
-  useEffect(() => { load(); }, []);
-
-  const openEdit = (row) => { setEditing(row); setForm({ name: row.name, allowed_days: row.allowed_days || 1, base_usd_amount: row.base_usd_amount || 0 }); setShowForm(true); };
-  const openNew  = ()    => { setEditing(null); setForm({ name: '', allowed_days: 1, base_usd_amount: 0 }); setShowForm(true); };
+  const openEdit = (row) => {
+    setEditing(row);
+    setForm({
+      name: row.name,
+      allocation_point_id: row.allocation_point_id || '',
+      destination_id: row.destination_id || '',
+      is_active: Number(row.is_active ?? 1),
+      allowed_days: row.allowed_days || 1,
+      base_usd_amount: row.base_usd_amount || 0,
+    });
+    setShowForm(true);
+  };
+  const openNew  = ()    => { setEditing(null); setForm({ name: '', allocation_point_id: '', destination_id: '', is_active: 1, allowed_days: 1, base_usd_amount: 0 }); setShowForm(true); };
 
   const handleSave = async (e) => {
     e.preventDefault(); setSaving(true);
     try {
       if (editing) await configService.routes.update(editing.id, form);
       else         await configService.routes.create(form);
-      notify.success(`Route ${editing ? 'updated' : 'created'}`); setShowForm(false); load();
+      notify.success(`Short route ${editing ? 'updated' : 'created'}`); setShowForm(false); load();
     } catch (e) { notify.error(e.message); } finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
-    try { await configService.routes.delete(deleting.id); notify.success('Route deleted'); setDeleting(null); load(); }
+    try { await configService.routes.delete(deleting.id); notify.success('Short route deleted'); setDeleting(null); load(); }
     catch (e) { notify.error(e.message); }
   };
 
   const columns = [
     { header: 'Name',         key: 'name' },
+    { header: 'Allocation Point', key: 'allocation_point_name', render: v => v || '—' },
+    { header: 'Destination', key: 'destination_name', render: v => v || '—' },
+    {
+      header: 'Status',
+      key: 'is_active',
+      render: v => Number(v ?? 1) === 1
+        ? <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">Active</span>
+        : <span className="inline-flex items-center rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700">Inactive</span>
+    },
     { header: 'Allowed Days', key: 'allowed_days' },
     { header: 'Base USD',     key: 'base_usd_amount', render: v => `$${v || 0}` },
     { header: 'Actions', key: 'id', render: (_, r) => (
@@ -56,22 +86,45 @@ export default function RoutesPage() {
 
   return (
     <div>
-      <PageHeader title="Routes" subtitle="Short route configuration"
-        breadcrumbs={[{ label: 'Configuration' }, { label: 'Routes' }]}
-        actions={<button onClick={openNew} className="btn-primary">+ Add Route</button>} />
+      <PageHeader title="Short Routes" subtitle="Short route configuration"
+        breadcrumbs={[{ label: 'Configuration' }, { label: 'Short Routes' }]}
+        actions={<button onClick={openNew} className="btn-primary">+ Add Short Route</button>} />
       <div className="card">
         <DataTable columns={columns} data={rows} loading={loading} emptyMessage="No routes configured." />
+        <Pagination
+          meta={meta}
+          onPageChange={p => { const np = { ...params, page: p }; setParams(np); load(np); }}
+          onPerPageChange={(perPage) => { const np = { ...params, per_page: perPage, page: 1 }; setParams(np); load(np); }}
+          allowAll
+        />
       </div>
-      <Modal isOpen={showForm} onClose={() => setShowForm(false)} title={editing ? 'Edit Route' : 'Add Route'}
+      <Modal isOpen={showForm} onClose={() => setShowForm(false)} title={editing ? 'Edit Short Route' : 'Add Short Route'}
         footer={<><button onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button><button form="route-form" type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving…' : 'Save'}</button></>}>
         <form id="route-form" onSubmit={handleSave} className="space-y-4">
-          <Input label="Route Name" required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          <Input label="Short Route Name" required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          <Select label="Allocation Point" required value={form.allocation_point_id} onChange={e => setForm(f => ({ ...f, allocation_point_id: e.target.value }))}>
+            <option value="">Select allocation point…</option>
+            {allocationPoints.map(ap => <option key={ap.id} value={ap.id}>{ap.name}</option>)}
+          </Select>
+          <Select label="Destination" required value={form.destination_id} onChange={e => setForm(f => ({ ...f, destination_id: e.target.value }))}>
+            <option value="">Select destination…</option>
+            {destinations.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </Select>
+          <div className="flex items-center gap-2">
+            <input
+              id="route-is-active"
+              type="checkbox"
+              checked={Number(form.is_active) === 1}
+              onChange={e => setForm(f => ({ ...f, is_active: e.target.checked ? 1 : 0 }))}
+            />
+            <label htmlFor="route-is-active" className="text-sm font-medium text-gray-700">Active</label>
+          </div>
           <Input label="Allowed Days" type="number" min="1" value={form.allowed_days} onChange={e => setForm(f => ({ ...f, allowed_days: e.target.value }))} />
           <Input label="Base USD Amount" type="number" min="0" step="0.01" value={form.base_usd_amount} onChange={e => setForm(f => ({ ...f, base_usd_amount: e.target.value }))} hint="Used for overstay calculation" />
         </form>
       </Modal>
       <ConfirmDialog isOpen={!!deleting} onClose={() => setDeleting(null)} onConfirm={handleDelete}
-        title="Delete Route" danger message={`Delete route "${deleting?.name}"?`} />
+        title="Delete Short Route" danger message={`Delete short route "${deleting?.name}"?`} />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { configService } from '../../services/configService';
 import { useNotification } from '../../contexts/NotificationContext';
 import PageHeader from '../../components/common/PageHeader';
 import DataTable from '../../components/common/DataTable';
+import Pagination from '../../components/common/Pagination';
 import Modal from '../../components/common/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import { Input, Select } from '../../components/common/FormField';
@@ -12,18 +13,20 @@ const EMPTY = { name: '', status: 'Active' };
 export default function CompaniesPage() {
   const { notify } = useNotification();
   const [rows, setRows]         = useState([]);
+  const [meta, setMeta]         = useState({});
   const [loading, setLoading]   = useState(false);
+  const [params, setParams]     = useState({ page: 1, per_page: 25 });
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing]   = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [saving, setSaving]     = useState(false);
   const [form, setForm]         = useState(EMPTY);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (p = params) => {
     setLoading(true);
-    try { setRows(await configService.companies.list() || []); }
+    try { const res = await configService.companies.list(p); setRows(res.data || []); setMeta(res.meta || {}); }
     finally { setLoading(false); }
-  }, []);
+  }, [params]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -71,6 +74,12 @@ export default function CompaniesPage() {
         actions={<button onClick={openNew} className="btn-primary">+ Add Company</button>} />
       <div className="card">
         <DataTable columns={columns} data={rows} loading={loading} emptyMessage="No companies configured." />
+        <Pagination
+          meta={meta}
+          onPageChange={p => { const np = { ...params, page: p }; setParams(np); load(np); }}
+          onPerPageChange={(perPage) => { const np = { ...params, per_page: perPage, page: 1 }; setParams(np); load(np); }}
+          allowAll
+        />
       </div>
 
       <Modal isOpen={showForm} onClose={() => setShowForm(false)}

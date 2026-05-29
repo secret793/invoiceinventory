@@ -72,10 +72,13 @@ class ConfirmedAffixed extends BaseModel
         $whereStr = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
         return Database::query(
-            "SELECT ca.*, ap.name as allocation_point_name, d.device_id as device_identifier
+            "SELECT ca.*, ap.name as allocation_point_name, d.device_id as device_identifier,
+                    r.name as route_name, lr.name as long_route_name
              FROM confirmed_affixeds ca
              LEFT JOIN allocation_points ap ON ca.allocation_point_id = ap.id
              LEFT JOIN devices d ON ca.device_id = d.id
+             LEFT JOIN routes r ON ca.route_id = r.id
+             LEFT JOIN long_routes lr ON ca.long_route_id = lr.id
              $whereStr ORDER BY ca.date DESC",
             $params
         );

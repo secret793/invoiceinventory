@@ -159,22 +159,36 @@ CREATE TABLE IF NOT EXISTS transfers (
 CREATE TABLE IF NOT EXISTS routes (
     id              BIGSERIAL PRIMARY KEY,
     name            VARCHAR(255) NOT NULL,
+    allocation_point_id BIGINT,
+    destination_id  BIGINT,
+    is_active       SMALLINT DEFAULT 1,
     allowed_days    INT DEFAULT 1,
     base_usd_amount DECIMAL(10,2) DEFAULT 0,
     description     TEXT,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT routes_ap_fk FOREIGN KEY (allocation_point_id) REFERENCES allocation_points(id) ON DELETE SET NULL,
+    CONSTRAINT routes_destination_fk FOREIGN KEY (destination_id) REFERENCES destinations(id) ON DELETE SET NULL
 );
+CREATE INDEX IF NOT EXISTS routes_ap_idx ON routes (allocation_point_id);
+CREATE INDEX IF NOT EXISTS routes_destination_idx ON routes (destination_id);
 
 CREATE TABLE IF NOT EXISTS long_routes (
     id              BIGSERIAL PRIMARY KEY,
     name            VARCHAR(255) NOT NULL,
+    allocation_point_id BIGINT,
+    destination_id  BIGINT,
+    is_active       SMALLINT DEFAULT 1,
     allowed_days    INT DEFAULT 3,
     base_usd_amount DECIMAL(10,2) DEFAULT 0,
     description     TEXT,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT long_routes_ap_fk FOREIGN KEY (allocation_point_id) REFERENCES allocation_points(id) ON DELETE SET NULL,
+    CONSTRAINT long_routes_destination_fk FOREIGN KEY (destination_id) REFERENCES destinations(id) ON DELETE SET NULL
 );
+CREATE INDEX IF NOT EXISTS long_routes_ap_idx ON long_routes (allocation_point_id);
+CREATE INDEX IF NOT EXISTS long_routes_destination_idx ON long_routes (destination_id);
 
 -- ── Regimes & Destinations ────────────────────────────────
 CREATE TABLE IF NOT EXISTS regimes (
@@ -235,6 +249,8 @@ CREATE TABLE IF NOT EXISTS confirmed_affixeds (
     route_id              BIGINT,
     long_route_id         BIGINT,
     manifest_date         DATE,
+    etd                   TIMESTAMP,
+    eta                   TIMESTAMP,
     agency                VARCHAR(255),
     agent_contact         VARCHAR(100),
     receipt_id            BIGINT,
@@ -252,7 +268,17 @@ CREATE TABLE IF NOT EXISTS confirmed_affix_logs (
     device_id            BIGINT,
     confirmed_affixed_id BIGINT,
     boe                  VARCHAR(100),
+    sad_number           VARCHAR(100),
     vehicle_number       VARCHAR(100),
+    regime               VARCHAR(100),
+    destination          VARCHAR(255),
+    destination_id       BIGINT,
+    route_id             BIGINT,
+    long_route_id        BIGINT,
+    agency               VARCHAR(255),
+    driver_name          VARCHAR(255),
+    etd                  TIMESTAMP,
+    eta                  TIMESTAMP,
     allocation_point_id  BIGINT,
     affixing_date        TIMESTAMP,
     affixed_by           BIGINT,
@@ -353,6 +379,9 @@ CREATE TABLE IF NOT EXISTS receipts (
     CONSTRAINT receipts_ap_fk FOREIGN KEY (allocation_point_id) REFERENCES allocation_points(id) ON DELETE SET NULL
 );
 
+CREATE INDEX IF NOT EXISTS receipts_receipt_number_idx ON receipts(receipt_number);
+CREATE INDEX IF NOT EXISTS receipts_sad_number_idx ON receipts(sad_number);
+
 -- ── Invoices ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS invoices (
     id                   BIGSERIAL PRIMARY KEY,
@@ -415,7 +444,8 @@ ON CONFLICT (email) DO NOTHING;
 INSERT INTO roles (name, guard_name) VALUES
     ('Super Admin', 'web'), ('Warehouse Manager', 'web'), ('Data Entry Officer', 'web'),
     ('Retrieval Officer', 'web'), ('Finance Officer', 'web'), ('Report Viewer', 'web'),
-    ('Distribution Officer', 'web'), ('Monitoring Officer', 'web'), ('Viewer', 'web')
+    ('Distribution Officer', 'web'), ('Monitoring Officer', 'web'), ('Allocation Officer', 'web'),
+    ('Affixing Officer', 'web'), ('Viewer', 'web')
 ON CONFLICT (name, guard_name) DO NOTHING;
 
 -- System Settings
@@ -443,19 +473,43 @@ INSERT INTO distribution_points (name, location, region, is_active) VALUES
 ON CONFLICT DO NOTHING;
 
 -- ── Sample Routes (Short) ─────────────────────────────────
-INSERT INTO routes (name, allowed_days, base_usd_amount, description) VALUES
-    ('Banjul – Serrekunda', 1, 25.00, 'Short urban route between Banjul and Serrekunda'),
-    ('Banjul – Brikama', 1, 35.00, 'Route from Banjul Port to Brikama Checkpoint'),
-    ('Serrekunda – Soma', 1, 55.00, 'West Coast to Central River short route'),
-    ('Brikama – Farafenni', 1, 65.00, 'West Coast Region to North Bank crossing'),
-    ('Banjul – Kanifing', 1, 20.00, 'Intra-city Banjul to Kanifing route')
+INSERT INTO routes (name, allocation_point_id, destination_id, is_active, allowed_days, base_usd_amount, description) VALUES
+    ('Banjul – Serrekunda',
+        (SELECT id FROM allocation_points WHERE name = 'Banjul Port Authority' LIMIT 1),
+        (SELECT id FROM destinations WHERE name = 'Kaolack' LIMIT 1),
+        1, 1, 25.00, 'Short urban route between Banjul and Serrekunda'),
+    ('Banjul – Brikama',
+        (SELECT id FROM allocation_points WHERE name = 'Banjul Port Authority' LIMIT 1),
+        (SELECT id FROM destinations WHERE name = 'Dakar Port' LIMIT 1),
+        1, 1, 35.00, 'Route from Banjul Port to Brikama Checkpoint'),
+    ('Serrekunda – Soma',
+        (SELECT id FROM allocation_points WHERE name = 'Brikama Checkpoint' LIMIT 1),
+        (SELECT id FROM destinations WHERE name = 'Ziguinchor' LIMIT 1),
+        1, 1, 55.00, 'West Coast to Central River short route'),
+    ('Brikama – Farafenni',
+        (SELECT id FROM allocation_points WHERE name = 'Brikama Checkpoint' LIMIT 1),
+        (SELECT id FROM destinations WHERE name = 'Bissau' LIMIT 1),
+        1, 1, 65.00, 'West Coast Region to North Bank crossing'),
+    ('Banjul – Kanifing',
+        (SELECT id FROM allocation_points WHERE name = 'Banjul Port Authority' LIMIT 1),
+        (SELECT id FROM destinations WHERE name = 'Conakry' LIMIT 1),
+        1, 1, 20.00, 'Intra-city Banjul to Kanifing route')
 ON CONFLICT DO NOTHING;
 
 -- ── Sample Long Routes ────────────────────────────────────
-INSERT INTO long_routes (name, allowed_days, base_usd_amount, description) VALUES
-    ('Banjul – Basse Santa Su', 3, 120.00, 'Full cross-country route to Upper River Region'),
-    ('Banjul – Janjanbureh', 3, 95.00, 'Trans-Gambia corridor to Central River Region'),
-    ('Brikama – Basse', 3, 110.00, 'South-bank long haul from West Coast to Upper River')
+INSERT INTO long_routes (name, allocation_point_id, destination_id, is_active, allowed_days, base_usd_amount, description) VALUES
+    ('Banjul – Basse Santa Su',
+        (SELECT id FROM allocation_points WHERE name = 'Banjul Port Authority' LIMIT 1),
+        (SELECT id FROM destinations WHERE name = 'Conakry' LIMIT 1),
+        1, 3, 120.00, 'Full cross-country route to Upper River Region'),
+    ('Banjul – Janjanbureh',
+        (SELECT id FROM allocation_points WHERE name = 'Banjul Port Authority' LIMIT 1),
+        (SELECT id FROM destinations WHERE name = 'Dakar Port' LIMIT 1),
+        1, 3, 95.00, 'Trans-Gambia corridor to Central River Region'),
+    ('Brikama – Basse',
+        (SELECT id FROM allocation_points WHERE name = 'Brikama Checkpoint' LIMIT 1),
+        (SELECT id FROM destinations WHERE name = 'Bissau' LIMIT 1),
+        1, 3, 110.00, 'South-bank long haul from West Coast to Upper River')
 ON CONFLICT DO NOTHING;
 
 -- ── Sample Regimes & Destinations ────────────────────────

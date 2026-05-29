@@ -19,7 +19,7 @@ class ConfirmedAffixedController
         'device_id', 'allocation_point_id', 'boe', 'sad_number', 'transaction_type',
         'transaction_reference', 'vehicle_number', 'truck_number', 'driver_name',
         'regime', 'destination', 'destination_id', 'route_id', 'long_route_id',
-        'manifest_date', 'agency', 'agent_contact', 'receipt_id', 'status', 'date',
+        'manifest_date', 'etd', 'eta', 'agency', 'agent_contact', 'receipt_id', 'status', 'date',
     ];
 
     /** Nullable bigint FK columns — empty string must become NULL */
@@ -36,9 +36,11 @@ class ConfirmedAffixedController
                 $clean[$col] = null;
             }
         }
-        // manifest_date: empty string → null (it's a date column)
-        if (array_key_exists('manifest_date', $clean) && $clean['manifest_date'] === '') {
-            $clean['manifest_date'] = null;
+        // date/time columns: empty string → null
+        foreach (['manifest_date', 'etd', 'eta'] as $dateCol) {
+            if (array_key_exists($dateCol, $clean) && $clean[$dateCol] === '') {
+                $clean[$dateCol] = null;
+            }
         }
         return $clean;
     }
@@ -189,7 +191,17 @@ class ConfirmedAffixedController
         ConfirmedAffixLog::create([
             'device_id'           => $ca['device_id'],
             'boe'                 => $ca['boe'],
+            'sad_number'          => $ca['sad_number'] ?? null,
             'vehicle_number'      => $ca['vehicle_number'],
+            'regime'              => $ca['regime'] ?? null,
+            'destination'         => $ca['destination'] ?? null,
+            'destination_id'      => $ca['destination_id'] ?? null,
+            'route_id'            => $ca['route_id'] ?? null,
+            'long_route_id'       => $ca['long_route_id'] ?? null,
+            'agency'              => $ca['agency'] ?? null,
+            'driver_name'         => $ca['driver_name'] ?? null,
+            'etd'                 => $ca['etd'] ?? null,
+            'eta'                 => $ca['eta'] ?? null,
             'allocation_point_id' => $ca['allocation_point_id'],
             'affixing_date'       => $affixDate,
             'affixed_by'          => $user['id'],

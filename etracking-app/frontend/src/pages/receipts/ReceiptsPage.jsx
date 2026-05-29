@@ -73,7 +73,12 @@ export default function ReceiptsPage() {
 
       <div className="card">
         <DataTable columns={columns} data={receipts} loading={loading} emptyMessage="No receipts found." />
-        <Pagination meta={meta} onPageChange={p => { const np = { ...params, page: p }; setParams(np); fetch(np); }} />
+        <Pagination
+          meta={meta}
+          onPageChange={p => { const np = { ...params, page: p }; setParams(np); fetch(np); }}
+          onPerPageChange={(perPage) => { const np = { ...params, per_page: perPage, page: 1 }; setParams(np); fetch(np); }}
+          allowAll
+        />
       </div>
 
       <Modal isOpen={showForm} onClose={() => { setShowForm(false); setEditing(null); }}

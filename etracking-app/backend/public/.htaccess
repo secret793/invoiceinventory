@@ -1,6 +1,4 @@
 Options -Indexes
-Options +FollowSymLinks
-
 RewriteEngine On
 
 # Route all requests through index.php (front controller)
@@ -10,9 +8,3 @@ RewriteRule ^ index.php [L,QSA]
 
 # Security: deny direct access to backend directories
 RewriteRule ^(app|config|routes|database)/ - [F,L]
-
-# PHP settings (adjust if host uses php.ini instead)
-php_value upload_max_filesize 20M
-php_value post_max_size 20M
-php_value max_execution_time 120
-php_value memory_limit 256M

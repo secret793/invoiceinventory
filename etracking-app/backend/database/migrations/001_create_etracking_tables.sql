@@ -82,6 +82,15 @@ CREATE TABLE IF NOT EXISTS distribution_points (
     updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ── Companies (device owner / company assignment) ─────────────────────────
+CREATE TABLE IF NOT EXISTS companies (
+    id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    name       VARCHAR(200)    NOT NULL,
+    status     VARCHAR(20)     NOT NULL DEFAULT 'Active',
+    created_at TIMESTAMP       NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP       NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ── Devices ────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS devices (
     id                     BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -97,13 +106,16 @@ CREATE TABLE IF NOT EXISTS devices (
     allocation_point_id    BIGINT UNSIGNED NULL,
     distribution_point_id  BIGINT UNSIGNED NULL,
     user_id                BIGINT UNSIGNED NULL,
+    company_id             BIGINT UNSIGNED NULL,
     notes                  TEXT NULL,
     created_at             TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at             TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX devices_status_idx (status),
     INDEX devices_allocation_idx (allocation_point_id),
+    INDEX devices_company_idx (company_id),
     CONSTRAINT devices_allocation_fk FOREIGN KEY (allocation_point_id) REFERENCES allocation_points(id) ON DELETE SET NULL,
-    CONSTRAINT devices_distribution_fk FOREIGN KEY (distribution_point_id) REFERENCES distribution_points(id) ON DELETE SET NULL
+    CONSTRAINT devices_distribution_fk FOREIGN KEY (distribution_point_id) REFERENCES distribution_points(id) ON DELETE SET NULL,
+    CONSTRAINT devices_company_fk FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Stores (Inventory Mirror) ─────────────────────────────
@@ -162,21 +174,35 @@ CREATE TABLE IF NOT EXISTS transfers (
 CREATE TABLE IF NOT EXISTS routes (
     id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name            VARCHAR(255) NOT NULL,
+    allocation_point_id BIGINT UNSIGNED NULL,
+    destination_id  BIGINT UNSIGNED NULL,
+    is_active       TINYINT(1) DEFAULT 1,
     allowed_days    INT DEFAULT 1,
     base_usd_amount DECIMAL(10,2) DEFAULT 0,
     description     TEXT NULL,
     created_at      TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at      TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at      TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX routes_ap_idx (allocation_point_id),
+    INDEX routes_destination_idx (destination_id),
+    CONSTRAINT routes_ap_fk FOREIGN KEY (allocation_point_id) REFERENCES allocation_points(id) ON DELETE SET NULL,
+    CONSTRAINT routes_destination_fk FOREIGN KEY (destination_id) REFERENCES destinations(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS long_routes (
     id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     name            VARCHAR(255) NOT NULL,
+    allocation_point_id BIGINT UNSIGNED NULL,
+    destination_id  BIGINT UNSIGNED NULL,
+    is_active       TINYINT(1) DEFAULT 1,
     allowed_days    INT DEFAULT 3,
     base_usd_amount DECIMAL(10,2) DEFAULT 0,
     description     TEXT NULL,
     created_at      TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at      TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at      TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX long_routes_ap_idx (allocation_point_id),
+    INDEX long_routes_destination_idx (destination_id),
+    CONSTRAINT long_routes_ap_fk FOREIGN KEY (allocation_point_id) REFERENCES allocation_points(id) ON DELETE SET NULL,
+    CONSTRAINT long_routes_destination_fk FOREIGN KEY (destination_id) REFERENCES destinations(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Regimes & Destinations ────────────────────────────────
@@ -233,6 +259,8 @@ CREATE TABLE IF NOT EXISTS confirmed_affixeds (
     route_id             BIGINT UNSIGNED NULL,
     long_route_id        BIGINT UNSIGNED NULL,
     manifest_date        DATE NULL,
+    etd                   DATETIME NULL,
+    eta                   DATETIME NULL,
     agency               VARCHAR(255) NULL,
     agent_contact        VARCHAR(100) NULL,
     receipt_id           BIGINT UNSIGNED NULL,
@@ -250,7 +278,17 @@ CREATE TABLE IF NOT EXISTS confirmed_affix_logs (
     device_id            BIGINT UNSIGNED NULL,
     confirmed_affixed_id BIGINT UNSIGNED NULL,
     boe                  VARCHAR(100) NULL,
+    sad_number           VARCHAR(100) NULL,
     vehicle_number       VARCHAR(100) NULL,
+    regime               VARCHAR(100) NULL,
+    destination          VARCHAR(255) NULL,
+    destination_id       BIGINT UNSIGNED NULL,
+    route_id             BIGINT UNSIGNED NULL,
+    long_route_id        BIGINT UNSIGNED NULL,
+    agency               VARCHAR(255) NULL,
+    driver_name          VARCHAR(255) NULL,
+    etd                  DATETIME NULL,
+    eta                  DATETIME NULL,
     allocation_point_id  BIGINT UNSIGNED NULL,
     affixing_date        DATETIME NULL,
     affixed_by           BIGINT UNSIGNED NULL,
@@ -346,7 +384,9 @@ CREATE TABLE IF NOT EXISTS receipts (
     created_by           BIGINT UNSIGNED NULL,
     created_at           TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at           TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT receipts_ap_fk FOREIGN KEY (allocation_point_id) REFERENCES allocation_points(id) ON DELETE SET NULL
+    CONSTRAINT receipts_ap_fk FOREIGN KEY (allocation_point_id) REFERENCES allocation_points(id) ON DELETE SET NULL,
+    INDEX receipts_receipt_number_idx (receipt_number),
+    INDEX receipts_sad_number_idx (sad_number)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Invoices ──────────────────────────────────────────────
@@ -412,7 +452,8 @@ VALUES ('Super Admin', 'admin@gnsw.gm', 'admin',
 INSERT IGNORE INTO roles (name, guard_name) VALUES
     ('Super Admin', 'web'), ('Warehouse Manager', 'web'), ('Data Entry Officer', 'web'),
     ('Retrieval Officer', 'web'), ('Finance Officer', 'web'), ('Report Viewer', 'web'),
-    ('Distribution Officer', 'web'), ('Monitoring Officer', 'web'), ('Viewer', 'web');
+    ('Distribution Officer', 'web'), ('Monitoring Officer', 'web'), ('Allocation Officer', 'web'),
+    ('Affixing Officer', 'web'), ('Viewer', 'web');
 
 -- System Settings
 INSERT IGNORE INTO system_settings (`key`, value, description) VALUES

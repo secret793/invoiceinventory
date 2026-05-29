@@ -1,14 +1,14 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useRef } from 'react';
 
 export default function SearchBar({ onSearch, placeholder = 'Search…', className = '', debounce = 400 }) {
   const [value, setValue] = useState('');
-  let timer = null;
+  const timerRef = useRef(null);
 
   const handleChange = (e) => {
     const v = e.target.value;
     setValue(v);
-    clearTimeout(timer);
-    timer = setTimeout(() => onSearch(v), debounce);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => onSearch(v), debounce);
   };
 
   return (

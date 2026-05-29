@@ -4,6 +4,7 @@ import { useNotification } from '../../contexts/NotificationContext';
 import api from '../../services/api';
 import PageHeader from '../../components/common/PageHeader';
 import DataTable from '../../components/common/DataTable';
+import Pagination from '../../components/common/Pagination';
 import Modal from '../../components/common/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import { Input, Select, FormField } from '../../components/common/FormField';
@@ -16,25 +17,28 @@ const EMPTY_FORM = {
 export default function DestinationsPage() {
   const { notify } = useNotification();
   const [rows, setRows]         = useState([]);
+  const [meta, setMeta]         = useState({});
   const [regimes, setRegimes]   = useState([]);
   const [loading, setLoading]   = useState(false);
+  const [params, setParams]     = useState({ page: 1, per_page: 25 });
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing]   = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [saving, setSaving]     = useState(false);
   const [form, setForm]         = useState(EMPTY_FORM);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (p = params) => {
     setLoading(true);
     try {
       const [dests, regs] = await Promise.all([
-        configService.destinations.list().catch(() => []),
+        configService.destinations.list(p).catch(() => ({ data: [], meta: {} })),
         api.get('/regimes').then(r => r.data.data || []).catch(() => []),
       ]);
-      setRows(dests || []);
+      setRows(dests.data || []);
+      setMeta(dests.meta || {});
       setRegimes(regs);
     } finally { setLoading(false); }
-  }, []);
+  }, [params]);
 
   useEffect(() => { load(); }, []);
 
@@ -97,6 +101,12 @@ export default function DestinationsPage() {
         actions={<button onClick={openNew} className="btn-primary">+ Add Destination</button>} />
       <div className="card">
         <DataTable columns={columns} data={rows} loading={loading} emptyMessage="No destinations configured." />
+        <Pagination
+          meta={meta}
+          onPageChange={p => { const np = { ...params, page: p }; setParams(np); load(np); }}
+          onPerPageChange={(perPage) => { const np = { ...params, per_page: perPage, page: 1 }; setParams(np); load(np); }}
+          allowAll
+        />
       </div>
 
       <Modal isOpen={showForm} onClose={() => setShowForm(false)}
